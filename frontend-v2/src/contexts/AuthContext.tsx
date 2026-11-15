@@ -10,19 +10,34 @@ import React, {
 } from 'react';
 import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
 import { ApiError } from '@/lib/api/client';
-import type { LoginRequest, AuthUser } from '@/types/api';
+import type { LoginRequest } from '@/lib/api/types';
+import { isSuperAdmin as checkSuperAdmin } from '@/lib/rbac';
 
 const WARN_BEFORE_MS = 60_000; // warn 60s before expiry
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  systemRole: string | null;
+  projectId: string | null;
+}
 
 export interface AuthContextValue {
   user: AuthUser | null;
   role: string | null;
+  systemRole: string | null;
+  isSuperAdmin: boolean;
+  projectId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   sessionExpiring: boolean;
   login: (req: LoginRequest) => Promise<void>;
   logout: () => void;
   extendSession: () => Promise<void> | void;
+  switchProject: (projectId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,6 +56,7 @@ function InnerAuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     clearTimers();
     setSessionExpiring(false);
+    void fetch('/api/auth/active-project', { method: 'DELETE' }).catch(() => undefined);
     void signOut({ redirect: false });
   }, [clearTimers]);
 
@@ -73,8 +89,7 @@ function InnerAuthProvider({ children }: { children: React.ReactNode }) {
     expireTimer.current = setTimeout(() => logout(), msLeft);
 
     return clearTimers;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.expires]);
+  }, [session?.expires, clearTimers, logout]);
 
   useEffect(() => {
     const onUnauthorized = () => logout();
@@ -94,9 +109,14 @@ function InnerAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Real Refresh Token Rotation via NextAuth update()
+  // Real Refresh Token Rotation via single-flight BFF endpoint + NextAuth update()
   const extendSession = useCallback(async () => {
     try {
+      const refreshRes = await fetch('/api/auth/refresh', { method: 'POST' });
+      if (!refreshRes.ok) {
+        logout();
+        return;
+      }
       await update();
       setSessionExpiring(false);
     } catch {
@@ -104,11 +124,35 @@ function InnerAuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [update, logout]);
 
+  const switchProject = useCallback(
+    async (nextProjectId: string) => {
+      const res = await fetch('/api/auth/active-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: nextProjectId }),
+      });
+
+      if (!res.ok) {
+        throw new ApiError(res.status, 'ไม่สามารถเปลี่ยนโปรเจกต์ที่ใช้งานอยู่ได้');
+      }
+
+      await update();
+    },
+    [update],
+  );
+
+  const systemRole = session?.user.systemRole ?? null;
+  const projectId = session?.user.projectId ?? null;
+
   const user: AuthUser | null = session?.user
     ? {
+        id: session.user.id ?? '',
         email: session.user.email ?? '',
-        firstName: session.user.firstName,
-        lastName: session.user.lastName,
+        firstName: session.user.firstName ?? '',
+        lastName: session.user.lastName ?? '',
+        role: session.user.role ?? 'Viewer',
+        systemRole,
+        projectId,
       }
     : null;
 
@@ -117,12 +161,16 @@ function InnerAuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         role: session?.user.role ?? null,
+        systemRole,
+        isSuperAdmin: checkSuperAdmin(systemRole),
+        projectId,
         isAuthenticated: status === 'authenticated',
         isLoading: status === 'loading',
         sessionExpiring,
         login,
         logout,
         extendSession,
+        switchProject,
       }}
     >
       {children}

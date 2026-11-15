@@ -17,6 +17,8 @@ import {
   Sliders,
   MoreVertical,
   LogOut,
+  ListChecks,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { canAccess } from '@/lib/rbac';
@@ -24,6 +26,7 @@ import { canAccess } from '@/lib/rbac';
 export type NavigationItemId =
   | 'templates'
   | 'generator'
+  | 'jobs'
   | 'audit'
   | 'logs'
   | 'studio'
@@ -32,6 +35,7 @@ export type NavigationItemId =
   | 'version-history'
   | 'analytics'
   | 'datasources'
+  | 'api-keys'
   | 'projects'
   | 'apidocs'
   | 'users'
@@ -40,6 +44,7 @@ export type NavigationItemId =
 export const navLabels: Record<NavigationItemId, string> = {
   templates: 'แม่แบบทั้งหมด',
   generator: 'สร้างเอกสาร',
+  jobs: 'คิวงาน (Jobs)',
   audit: 'ประวัติการสร้าง',
   logs: 'ประวัติการใช้งาน',
   studio: 'Template Editor',
@@ -48,7 +53,8 @@ export const navLabels: Record<NavigationItemId, string> = {
   'version-history': 'Version History',
   analytics: 'Analytics',
   datasources: 'Datasources',
-  projects: 'API Keys',
+  'api-keys': 'API Keys',
+  projects: 'Control Plane',
   apidocs: 'API Docs',
   users: 'จัดการผู้ใช้',
   settings: 'ตั้งค่าระบบ',
@@ -71,6 +77,7 @@ export const navSections: NavSection[] = [
     items: [
       { id: 'templates', label: navLabels['templates'], icon: LayoutTemplate },
       { id: 'generator', label: navLabels['generator'], icon: FileText },
+      { id: 'jobs', label: navLabels['jobs'], icon: ListChecks },
       { id: 'audit', label: navLabels['audit'], icon: History },
     ],
   },
@@ -88,8 +95,9 @@ export const navSections: NavSection[] = [
     title: 'ผู้ดูแลระบบ',
     items: [
       { id: 'datasources', label: navLabels['datasources'], icon: Database },
-      { id: 'projects', label: navLabels['projects'], icon: Key },
+      { id: 'api-keys', label: navLabels['api-keys'], icon: Key },
       { id: 'users', label: navLabels['users'], icon: Users },
+      { id: 'projects', label: navLabels['projects'], icon: ShieldCheck, tag: 'SA' },
       { id: 'settings', label: navLabels['settings'], icon: Settings },
     ],
   },
@@ -106,7 +114,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeItem,
   onSelectItem,
 }) => {
-  const { user, role, logout } = useAuthContext();
+  const { user, role, systemRole, logout } = useAuthContext();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -155,7 +163,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Nav Menu */}
       <div className="flex-1 overflow-y-auto py-2.5 px-2 space-y-4">
         {navSections.map((section, sIdx) => {
-          const visibleItems = section.items.filter((item) => canAccess(role, item.id));
+          const visibleItems = section.items.filter((item) =>
+            canAccess(role, item.id, systemRole),
+          );
           if (visibleItems.length === 0) return null;
           return (
           <div key={sIdx} className="space-y-1">

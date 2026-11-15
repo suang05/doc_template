@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { userRoles, type UserRole } from '@/constants/domain';
 
-export const userRoles = ['Admin', 'Developer', 'Viewer'] as const;
-export type UserRole = (typeof userRoles)[number];
+export { userRoles, type UserRole };
 
 export const UserListItemSchema = z.object({
   id: z.string().uuid(),
@@ -21,9 +21,9 @@ export const InviteUserRequestSchema = z.object({
   lastName: z.string().min(1, 'กรุณากรอกนามสกุล'),
   role: z.enum(userRoles),
 });
-export type InviteUserRequest = z.infer<typeof InviteUserRequestSchema>;
+export type InviteUserFormInput = z.infer<typeof InviteUserRequestSchema>;
 
 export const UpdateUserRoleRequestSchema = z.object({
   role: z.enum(userRoles),
 });
-export type UpdateUserRoleRequest = z.infer<typeof UpdateUserRoleRequestSchema>;
+export type UpdateUserRoleFormInput = z.infer<typeof UpdateUserRoleRequestSchema>;

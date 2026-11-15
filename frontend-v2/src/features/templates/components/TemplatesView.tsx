@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Search,
   Plus,
@@ -31,9 +32,13 @@ import {
   Dropdown,
   Table,
   Column,
+  ConflictBanner,
+  Toast,
 } from '@/components/ui';
+import { extractErrorMessage } from '@/lib/api/client';
+import type { TemplateDto } from '@/lib/api/types';
+import { useConflictRecovery } from '@/hooks/useConflictRecovery';
 import { templatesApi } from '../api/templates.api';
-import { TemplateDto } from '../schemas/template.schema';
 import { CreateTemplateChoiceModal } from './CreateTemplateChoiceModal';
 
 export interface TemplatesViewProps {
@@ -61,36 +66,33 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
     refresh,
   } = useTemplates();
 
-  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { conflict, captureConflict, clearConflict } = useConflictRecovery();
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('smk_templates_view_mode');
-      if (saved === 'cards' || saved === 'table') {
-        setViewMode(saved);
-      }
-    } catch {
-      // localStorage unavailable or restricted
-    }
-  }, []);
+  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const viewMode: 'cards' | 'table' = searchParams.get('view') === 'cards' ? 'cards' : 'table';
 
   const handleViewModeChange = (mode: 'cards' | 'table') => {
-    setViewMode(mode);
-    try {
-      localStorage.setItem('smk_templates_view_mode', mode);
-    } catch {
-      // ignore
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('view', mode);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const handleDeactivate = async (id: string, name: string) => {
     if (!confirm(`ต้องการยกเลิกการใช้งานแม่แบบ "${name}" หรือไม่?`)) return;
+    clearConflict();
     try {
-      await templatesApi.deactivateTemplate(id);
+      const { etag } = await templatesApi.getTemplateWithETag(id);
+      await templatesApi.deactivateTemplate(id, etag);
       await refresh();
-    } catch (err: any) {
-      alert(err.message || 'ปิดใช้งานล้มเหลว');
+      setToast({ type: 'success', message: `อัปเดตสถานะแม่แบบ "${name}" เรียบร้อยแล้ว` });
+    } catch (err: unknown) {
+      if (!captureConflict(err)) {
+        setToast({ type: 'error', message: extractErrorMessage(err, 'ปิดใช้งานล้มเหลว') });
+      }
     }
   };
 
@@ -105,8 +107,8 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert(err.message || 'ดาวน์โหลดแม่แบบล้มเหลว');
+    } catch (err: unknown) {
+      setToast({ type: 'error', message: extractErrorMessage(err, 'ดาวน์โหลดแม่แบบล้มเหลว') });
     }
   };
 
@@ -175,7 +177,11 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
       header: 'แก้ไขล่าสุด',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {new Date(item.updatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {new Date(item.updatedAt ?? item.createdAt).toLocaleDateString('th-TH', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })}
         </span>
       ),
       align: 'center',
@@ -262,7 +268,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
               <Select
                 options={categoryOptions}
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value as any)}
+                onChange={(e) => setSelectedCategory(e.target.value as DocumentCategory | 'all')}
               />
             </div>
           </>
@@ -274,6 +280,8 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleViewModeChange('table')}
+                aria-label="มุมมองตาราง"
+                aria-pressed={viewMode === 'table'}
                 className={`p-1.5 transition-colors cursor-pointer ${
                   viewMode === 'table'
                     ? 'bg-primaryLight text-primary font-semibold'
@@ -286,6 +294,8 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleViewModeChange('cards')}
+                aria-label="มุมมองการ์ด"
+                aria-pressed={viewMode === 'cards'}
                 className={`p-1.5 transition-colors cursor-pointer ${
                   viewMode === 'cards'
                     ? 'bg-primaryLight text-primary font-semibold'
@@ -306,6 +316,15 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
             </Button>
           </div>
         }
+      />
+
+      <ConflictBanner
+        conflict={conflict}
+        onReload={async () => {
+          clearConflict();
+          await refresh();
+        }}
+        onDismiss={clearConflict}
       />
 
       {/* Cards Grid */}
@@ -379,7 +398,11 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
                   </div>
                   
                   <div className="text-[10px] text-textMuted font-mono">
-                    {new Date(t.updatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {new Date(t.updatedAt ?? t.createdAt).toLocaleDateString('th-TH', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                   </div>
                 </div>
 
@@ -429,6 +452,14 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
         onOpenStudio={(templateId) => onOpenStudio(templateId)}
         onCreated={() => refresh()}
       />
+
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

@@ -8,6 +8,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.GetProjectUserById;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 namespace SmkDoc.Tests.Api.Controllers;
@@ -16,6 +17,8 @@ public sealed class ProjectUsersControllerTests
 {
     private readonly IUseCase<ListProjectUsersQuery, List<UserResultDto>> _listUseCase =
         Substitute.For<IUseCase<ListProjectUsersQuery, List<UserResultDto>>>();
+    private readonly IUseCase<GetProjectUserByIdQuery, UserResultDto> _getByIdUseCase =
+        Substitute.For<IUseCase<GetProjectUserByIdQuery, UserResultDto>>();
     private readonly IUseCase<InviteUserCommand, UserResultDto> _inviteUseCase =
         Substitute.For<IUseCase<InviteUserCommand, UserResultDto>>();
     private readonly IUseCase<UpdateUserRoleCommand, UserResultDto> _updateRoleUseCase =
@@ -34,6 +37,7 @@ public sealed class ProjectUsersControllerTests
 
         return new ProjectUsersController(
             _listUseCase,
+            _getByIdUseCase,
             _inviteUseCase,
             _updateRoleUseCase,
             _removeUseCase)
@@ -43,6 +47,24 @@ public sealed class ProjectUsersControllerTests
                 HttpContext = httpContext
             }
         };
+    }
+
+    [Fact]
+    public async Task GetById_InvokesUseCase_ReturnsOkWithUserAndVersion()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var dto = new UserResultDto(userId, "member@smkdoc.com", "Somchai", "Jaidee", "Developer", true, DateTimeOffset.UtcNow, Version: 4);
+        _getByIdUseCase.ExecuteAsync(Arg.Is<GetProjectUserByIdQuery>(q => q.UserId == userId), Arg.Any<CancellationToken>())
+            .Returns(dto);
+
+        // Act
+        var result = await CreateSut().GetById(userId, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var envelope = okResult.Value.Should().BeOfType<ApiResponse<UserResultDto>>().Subject;
+        envelope.Data.Should().BeEquivalentTo(dto);
     }
 
     [Fact]

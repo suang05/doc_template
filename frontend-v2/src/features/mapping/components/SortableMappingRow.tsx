@@ -4,10 +4,9 @@ import { Fragment } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, Database, ChevronDown, ChevronRight } from 'lucide-react';
-import type { DataSourceType } from '@/types/api';
-import type { TemplateDatasetDto } from '@/types/api';
+import { ThaiTransformTypes, type DataSourceType } from '@/constants/domain';
+import type { TemplateDatasetDto } from '@/lib/api/types';
 import { type MappingRow, PH_TYPES, PT_MAP } from '../domain/mappingMapper';
-import { ThaiTransformTypes } from '@/types/api';
 import { cn } from '@/utils/cn';
 
 const DS_PLACEHOLDER: Record<DataSourceType, string> = {

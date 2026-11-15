@@ -5,7 +5,9 @@ import { type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { templatesApi } from '@/features/templates/api/templates.api';
 import { getTemplateDatasets } from '@/features/datasources/api/templateDatasets.api';
-import type { TemplateDatasetDto } from '@/types/api';
+import { extractErrorMessage } from '@/lib/api/client';
+import type { TemplateDatasetDto } from '@/lib/api/types';
+import { type ConflictState, useConflictRecovery } from '@/hooks/useConflictRecovery';
 import { type MappingRow, newRow, dtoToRow, rowToSaveItem } from '../domain/mappingMapper';
 import { TOAST_AUTO_DISMISS_MS, BLOB_URL_REVOKE_DELAY_MS } from '@/constants/timeouts';
 
@@ -22,6 +24,9 @@ interface UseFieldMappingReturn {
   savedOk: boolean;
   previewing: boolean;
   unmapped: number;
+  templateEtag: string | null;
+  conflict: ConflictState | null;
+  clearConflict: () => void;
   loadMappings: (templateId: string) => Promise<void>;
   handleField: (id: string, field: string, value: unknown) => void;
   handleDelete: (id: string) => void;
@@ -45,6 +50,8 @@ export function useFieldMapping(selectedTemplateId: string): UseFieldMappingRetu
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [templateEtag, setTemplateEtag] = useState<string | null>(null);
+  const { conflict, captureConflict, clearConflict } = useConflictRecovery();
 
   // Load template datasets when template changes
   useEffect(() => {
@@ -58,16 +65,22 @@ export function useFieldMapping(selectedTemplateId: string): UseFieldMappingRetu
     if (!templateId) return;
     setLoading(true);
     setIsDirty(false);
+    clearConflict();
     try {
-      const data = await templatesApi.getTemplateMappings(templateId);
+      const [data, templateMeta] = await Promise.all([
+        templatesApi.getTemplateMappings(templateId),
+        templatesApi.getTemplateWithETag(templateId).catch(() => null),
+      ]);
       const safeData = Array.isArray(data) ? data : [];
       setRows(safeData.map(dtoToRow));
+      setTemplateEtag(templateMeta?.etag ?? null);
     } catch {
       setRows([]);
+      setTemplateEtag(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clearConflict]);
 
   // Reload mappings whenever the selected template changes
   useEffect(() => {
@@ -143,16 +156,26 @@ export function useFieldMapping(selectedTemplateId: string): UseFieldMappingRetu
     if (!templateId) throw new Error('ไม่พบ Template ID');
     setSaving(true);
     setSavedOk(false);
+    clearConflict();
     try {
-      const items = rows.map(rowToSaveItem);
-      await templatesApi.saveTemplateMappings(templateId, items);
+      const items = rows.map((row, idx) => rowToSaveItem(row, idx));
+      await templatesApi.saveTemplateMappings(templateId, items, templateEtag);
+      const refreshed = await templatesApi.getTemplateWithETag(templateId).catch(() => null);
+      if (refreshed) {
+        setTemplateEtag(refreshed.etag);
+      }
       setIsDirty(false);
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), TOAST_AUTO_DISMISS_MS);
+    } catch (err: unknown) {
+      if (!captureConflict(err)) {
+        throw new Error(extractErrorMessage(err, 'บันทึก Mapping ล้มเหลว'));
+      }
+      throw err;
     } finally {
       setSaving(false);
     }
-  }, [rows]);
+  }, [rows, templateEtag, captureConflict, clearConflict]);
 
   const handlePdfPreview = useCallback(async (templateId: string, sampleData: Record<string, unknown>) => {
     if (!templateId) return;
@@ -175,6 +198,7 @@ export function useFieldMapping(selectedTemplateId: string): UseFieldMappingRetu
   return {
     rows, expandedSql, expandedFx, templateDatasets,
     isDirty, loading, saving, savedOk, previewing, unmapped,
+    templateEtag, conflict, clearConflict,
     loadMappings, handleField, handleDelete, handleToggleSql, handleToggleFx,
     handleDragEnd, handleAddRow, handleSave, handlePdfPreview,
   };

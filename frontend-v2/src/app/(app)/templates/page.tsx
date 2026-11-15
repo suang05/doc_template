@@ -1,3 +1,4 @@
+import React, { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { TemplatesPageClient } from './_components/TemplatesPageClient';
 
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function TemplatesPage() {
-  return <TemplatesPageClient />;
+  return (
+    <Suspense fallback={<div className="p-8 text-xs text-textMuted">กำลังโหลด...</div>}>
+      <TemplatesPageClient />
+    </Suspense>
+  );
 }

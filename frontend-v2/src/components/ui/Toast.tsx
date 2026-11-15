@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 
 export interface ToastProps {
@@ -16,12 +16,14 @@ export const Toast: React.FC<ToastProps> = ({
   onClose,
   duration = 4000,
 }) => {
+  const [paused, setPaused] = useState(false);
+
   useEffect(() => {
-    if (duration > 0) {
+    if (duration > 0 && !paused) {
       const timer = setTimeout(onClose, duration);
       return () => clearTimeout(timer);
     }
-  }, [duration, onClose]);
+  }, [duration, onClose, paused]);
 
   const config = {
     success: {
@@ -42,20 +44,34 @@ export const Toast: React.FC<ToastProps> = ({
   }[type];
 
   const Icon = config.icon;
+  const isError = type === 'error';
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 flex items-center gap-2.5 px-3 py-2 border rounded-sm shadow-md animate-in slide-in-from-bottom-2 duration-150 text-xs font-medium ${config.bg}`}
-      role="alert"
+      role="region"
+      aria-label="การแจ้งเตือน"
+      className="fixed bottom-4 right-4 z-50"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
     >
-      <Icon className={`w-4 h-4 shrink-0 ${config.iconColor}`} />
-      <span>{message}</span>
-      <button
-        onClick={onClose}
-        className="ml-2 p-0.5 rounded-sm hover:opacity-75 transition-opacity text-current"
+      <div
+        role={isError ? 'alert' : 'status'}
+        aria-live={isError ? 'assertive' : 'polite'}
+        className={`flex items-center gap-2.5 px-3 py-2 border rounded-sm shadow-md animate-in slide-in-from-bottom-2 duration-150 text-xs font-medium ${config.bg}`}
       >
-        <X className="w-3.5 h-3.5" />
-      </button>
+        <Icon className={`w-4 h-4 shrink-0 ${config.iconColor}`} />
+        <span>{message}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="ปิดการแจ้งเตือน"
+          className="ml-2 p-0.5 rounded-sm hover:opacity-75 transition-opacity text-current"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 };

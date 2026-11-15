@@ -2,80 +2,84 @@ import { z } from 'zod';
 
 export const slugSchema = z
   .string()
-  .min(2, 'Slug ต้องมีความยาวอย่างน้อย 2 ตัวอักษร')
-  .max(100, 'Slug ต้องมีความยาวไม่เกิน 100 ตัวอักษร')
-  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug ต้องเป็นตัวพิมพ์เล็ก ตัวเลข หรือขีดกลางเท่านั้น');
+  .min(3, 'Slug ต้องมีความยาวอย่างน้อย 3 ตัวอักษร')
+  .max(64, 'Slug ต้องไม่เกิน 64 ตัวอักษร')
+  .regex(/^[a-z0-9-]+$/, 'Slug ต้องใช้ตัวอักษรพิมพ์เล็ก ตัวเลข และขีดกลาง (-) เท่านั้น');
 
 export const TemplateDtoSchema = z.object({
   id: z.string().uuid(),
-  name: z.string().min(1, 'ต้องระบุชื่อแม่แบบ'),
-  slug: slugSchema,
-  category: z.string().nullable().optional(),
-  isActive: z.boolean().default(true),
+  projectId: z.string().uuid().optional(),
+  name: z.string(),
+  slug: z.string(),
+  category: z.string().nullable(),
+  isActive: z.boolean(),
   currentVersionId: z.string().uuid().nullable().optional(),
-  fileFormat: z.enum(['html', 'docx', 'xlsx', 'pdf']).nullable().optional(),
+  fileFormat: z.string().nullable(),
   createdAt: z.string(),
-  updatedAt: z.string(),
+  updatedAt: z.string().nullable(),
 });
 export type TemplateDto = z.infer<typeof TemplateDtoSchema>;
 
 export const CreateTemplateRequestSchema = z.object({
-  name: z.string().min(1, 'ต้องระบุชื่อแม่แบบ'),
+  name: z.string().min(2, 'กรุณาระบุชื่อแม่แบบอย่างน้อย 2 ตัวอักษร'),
   slug: slugSchema,
-  category: z.string().optional().nullable(),
-  htmlContent: z.string().optional().nullable(),
+  category: z.string().default('contract'),
+  html: z.string().optional(),
 });
 export type CreateTemplateRequest = z.infer<typeof CreateTemplateRequestSchema>;
 
 export const SaveTemplateHtmlRequestSchema = z.object({
-  html: z.string().min(1, 'เนื้อหา HTML ต้องไม่ว่างเปล่า'),
-  samplePayload: z.string().optional().nullable(),
-  changeNote: z.string().optional().nullable(),
+  html: z.string().min(10, 'โค้ด HTML ต้องมีความยาวอย่างน้อย 10 ตัวอักษร'),
+  samplePayload: z.string().nullable().optional(),
+  changeNote: z.string().max(200, 'คำอธิบายไม่ควรเกิน 200 ตัวอักษร').nullable().optional(),
 });
 export type SaveTemplateHtmlRequest = z.infer<typeof SaveTemplateHtmlRequestSchema>;
 
 export const TemplateStudioDtoSchema = z.object({
   html: z.string(),
-  samplePayload: z.string().nullable().optional(),
+  samplePayload: z.string().nullable(),
   dataSchema: z.string().nullable().optional(),
-  version: z.number().int(),
+  version: z.number(),
 });
 export type TemplateStudioDto = z.infer<typeof TemplateStudioDtoSchema>;
 
 export const TemplateSchemaDtoSchema = z.object({
   templateId: z.string().uuid(),
   slug: z.string(),
-  format: z.string().nullable().optional(),
-  version: z.number().int(),
-  dataSchema: z.string().nullable().optional(),
-  samplePayload: z.string().nullable().optional(),
+  format: z.unknown().nullable().optional(),
+  version: z.number(),
+  dataSchema: z.string().nullable(),
+  samplePayload: z.string().nullable(),
 });
 export type TemplateSchemaDto = z.infer<typeof TemplateSchemaDtoSchema>;
 
-
 export const UpdateTemplateRequestSchema = z.object({
-  name: z.string().optional().nullable(),
-  category: z.string().optional().nullable(),
-  isActive: z.boolean().optional().nullable(),
+  name: z.string().min(2, 'กรุณาระบุชื่อแม่แบบ'),
+  category: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
 });
 export type UpdateTemplateRequest = z.infer<typeof UpdateTemplateRequestSchema>;
 
 export const TemplateVersionDtoSchema = z.object({
   id: z.string().uuid(),
   templateId: z.string().uuid(),
-  version: z.number().int(),
-  storageKey: z.string(),
-  status: z.number().int().optional(),
+  version: z.number(),
+  storageKey: z.string().optional(),
+  status: z.string(),
   fileFormat: z.string().nullable().optional(),
+  dataSchema: z.string().nullable().optional(),
+  samplePayload: z.string().nullable().optional(),
+  mappingsSnapshot: z.string().nullable().optional(),
   commitMessage: z.string().nullable().optional(),
   createdBy: z.string().nullable().optional(),
   createdAt: z.string(),
+  updatedAt: z.string().nullable().optional(),
 });
 export type TemplateVersionDto = z.infer<typeof TemplateVersionDtoSchema>;
 
 export const TemplateValidationResultSchema = z.object({
   valid: z.boolean(),
-  errors: z.array(z.string()).default([]),
-  fields: z.array(z.string()).default([]),
+  fields: z.array(z.string()),
+  errors: z.array(z.string()),
 });
 export type TemplateValidationResult = z.infer<typeof TemplateValidationResultSchema>;

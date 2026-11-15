@@ -5,7 +5,8 @@ import { Eye, EyeOff, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
-import { loginRequestSchema } from '@/types/api';
+import { loginRequestSchema } from '../schemas/auth.schema';
+import { ApiError, extractErrorMessage } from '@/lib/api/client';
 
 export function LoginView() {
   const { login } = useAuth();
@@ -34,9 +35,9 @@ export function LoginView() {
     try {
       await login(parsed.data);
       // AuthContext.login() sets state → AppContent re-renders to app view automatically
-    } catch (err: any) {
-      const msg = err?.message || 'เข้าสู่ระบบไม่สำเร็จ';
-      if (err?.status === 401) {
+    } catch (err: unknown) {
+      const msg = extractErrorMessage(err, 'เข้าสู่ระบบไม่สำเร็จ');
+      if (err instanceof ApiError && err.status === 401) {
         setErrors({ general: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
       } else {
         setErrors({ general: msg });

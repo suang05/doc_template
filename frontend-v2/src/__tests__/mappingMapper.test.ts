@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { genId, newRow, dtoToRow, rowToSaveItem } from '@/features/mapping/domain/mappingMapper';
-import type { FieldMappingDto } from '@/types/api';
+import type { FieldMappingDto } from '@/lib/api/types';
 
 describe('genId', () => {
   it('generates unique non-empty string IDs', () => {

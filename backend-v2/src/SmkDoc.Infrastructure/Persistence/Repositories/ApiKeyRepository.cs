@@ -16,6 +16,16 @@ public sealed class ApiKeyRepository(AppDbContext context) : IApiKeyRepository
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id && k.ProjectId == projectId, ct);
     }
 
+    public async Task<ApiKey?> GetForCurrentProjectAsync(ApiKeyId id, CancellationToken ct)
+    {
+        if (!_context.IsTenantResolved || _context.CurrentTenantId == ProjectId.Empty)
+        {
+            throw new TenantContextNotResolvedException();
+        }
+
+        return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, ct);
+    }
+
     public async Task<ApiKey?> GetByIdWithoutProjectAsync(ApiKeyId id, CancellationToken ct)
     {
         return await _context.ApiKeys.FirstOrDefaultAsync(k => k.Id == id, ct);

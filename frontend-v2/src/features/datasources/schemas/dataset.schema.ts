@@ -24,3 +24,19 @@ export type CreateDatasetRequest = z.infer<typeof CreateDatasetSchema>;
 
 export const UpdateDatasetSchema = CreateDatasetSchema;
 export type UpdateDatasetRequest = z.infer<typeof UpdateDatasetSchema>;
+
+export const DatasetColumnSchema = z.object({
+  name: z.string(),
+  dataType: z.string(),
+  isNullable: z.boolean().default(true),
+});
+
+export const DryRunDatasetResponseSchema = z.object({
+  success: z.boolean(),
+  columns: z.array(DatasetColumnSchema),
+  sampleRows: z.array(z.record(z.string(), z.unknown())),
+  sampleCount: z.number().int(),
+  executionTimeMs: z.number(),
+  error: z.string().nullable().optional(),
+});
+export type DryRunDatasetResponse = z.infer<typeof DryRunDatasetResponseSchema>;

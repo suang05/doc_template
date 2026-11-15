@@ -1,211 +1,387 @@
-// Requests go through the Next.js proxy (`/api/proxy/*`) instead of hitting the backend
-// directly — the proxy attaches the JWT from the httpOnly session cookie server-side, so
-// the browser never has access to the token (see src/app/api/proxy/[...path]/route.ts).
-const API_BASE_URL = '/api/proxy';
-const STORAGE_KEY = 'smk_api_key';
+import {
+  mapPointerErrors,
+  parseRetryAfterSeconds,
+  problemDetailsSchema,
+  type ProblemDetailsErrorItem,
+  type ProblemDetailsPayload,
+} from './problemDetails';
+import type { ResourceWithETag } from './types';
 
-export interface ProblemDetails {
-  type?: string;
-  title?: string;
-  status?: number;
-  detail?: string;
-  instance?: string;
-  errorCode?: string;
-  errors?: Record<string, string[]>;
-  [key: string]: unknown;
+export type ProblemDetails = ProblemDetailsPayload;
+export type { ProblemDetailsErrorItem };
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+export interface RequestConfig extends RequestInit {
+  ifMatch?: string | null;
+  idempotencyKey?: string;
+  projectId?: string;
+}
+
+export interface ErrorRateLimitMeta {
+  retryAfterSeconds?: number;
+  rateLimitRemaining?: number;
+  rateLimitResetSeconds?: number;
+}
+
+export interface BlobDownloadResult {
+  blob: Blob;
+  fileName: string | null;
+  contentType: string;
+  contentLength: number | null;
+  etag: string | null;
+  headers: Headers;
+}
+
+export interface StreamDownloadResult {
+  stream: ReadableStream<Uint8Array>;
+  fileName: string | null;
+  contentType: string;
+  etag: string | null;
+  headers: Headers;
 }
 
 export class ApiError extends Error {
-  public errorCode?: string;
-  public detail?: string;
-  public errors?: Record<string, string[]>;
-  public problemDetails?: ProblemDetails;
+  status: number;
+  problemDetails?: ProblemDetailsPayload;
+  errorCode?: string;
+  traceId?: string;
+  detail?: string;
+  fieldErrors: Record<string, string>;
+  rawErrors: ProblemDetailsErrorItem[];
+  retryAfterSeconds?: number;
+  rateLimitRemaining?: number;
+  rateLimitResetSeconds?: number;
 
   constructor(
-    public status: number,
-    public message: string,
-    public data?: unknown
+    status: number,
+    message: string,
+    problemDetails?: ProblemDetailsPayload,
+    meta?: ErrorRateLimitMeta,
   ) {
     super(message);
     this.name = 'ApiError';
+    this.status = status;
+    this.problemDetails = problemDetails;
+    this.errorCode = problemDetails?.errorCode;
+    this.traceId = problemDetails?.traceId;
+    this.detail = problemDetails?.detail;
+    this.rawErrors = problemDetails?.errors ?? [];
+    this.fieldErrors = mapPointerErrors(problemDetails?.errors);
+    this.retryAfterSeconds = meta?.retryAfterSeconds;
+    this.rateLimitRemaining = meta?.rateLimitRemaining;
+    this.rateLimitResetSeconds = meta?.rateLimitResetSeconds;
+  }
+}
 
-    if (data && typeof data === 'object') {
-      const p = data as ProblemDetails;
-      this.errorCode = p.errorCode;
-      this.detail = p.detail;
-      this.errors = p.errors;
-      this.problemDetails = p;
+export function extractErrorMessage(
+  err: unknown,
+  fallback = 'เกิดข้อผิดพลาดในการเชื่อมต่อระบบ',
+): string {
+  if (err instanceof ApiError) {
+    return err.detail || err.message || fallback;
+  }
+  if (err instanceof Error && err.message.trim().length > 0) {
+    return err.message;
+  }
+  if (typeof err === 'string' && err.trim().length > 0) {
+    return err;
+  }
+  return fallback;
+}
+
+function resolveRequestUrl(endpoint: string): string {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+  if (
+    endpoint.startsWith('/api/') &&
+    !endpoint.startsWith('/api/proxy/') &&
+    !endpoint.startsWith('/api/auth/') &&
+    endpoint !== '/api/health'
+  ) {
+    return `/api/proxy${endpoint.slice(4)}`;
+  }
+  if (endpoint.startsWith('/api/')) {
+    return endpoint;
+  }
+  return `${API_BASE_URL}${endpoint}`;
+}
+
+function buildPlainHeaders(
+  config: RequestConfig,
+  defaultJsonContentType: boolean,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  if (config.headers) {
+    if (config.headers instanceof Headers) {
+      config.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else if (Array.isArray(config.headers)) {
+      for (const [key, value] of config.headers) {
+        headers[key] = value;
+      }
+    } else {
+      Object.assign(headers, config.headers);
     }
   }
-}
 
-export const getStoredApiKey = (): string => {
-  const defaultKey = process.env.NEXT_PUBLIC_DEFAULT_API_KEY || '';
-  if (typeof window === 'undefined') return defaultKey;
-  return localStorage.getItem(STORAGE_KEY) || defaultKey;
-};
-
-export function setStoredApiKey(key: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, key.trim());
-}
-
-// ── Shared helpers ──────────────────────────────────────────────────────────
-
-function buildHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  return { ...extra };
-}
-
-function prepareJsonHeaders(options: RequestInit): Record<string, string> {
-  const headers = buildHeaders(options.headers as Record<string, string>);
-  
-  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+  const hasContentType = Object.keys(headers).some(
+    (k) => k.toLowerCase() === 'content-type',
+  );
+  if (
+    defaultJsonContentType &&
+    !hasContentType &&
+    !(config.body instanceof FormData)
+  ) {
     headers['Content-Type'] = 'application/json';
   }
-  
+
+  if (config.ifMatch && config.ifMatch.trim().length > 0) {
+    headers['If-Match'] = config.ifMatch.trim();
+  }
+  if (config.idempotencyKey && config.idempotencyKey.trim().length > 0) {
+    headers['Idempotency-Key'] = config.idempotencyKey.trim();
+  }
+  if (config.projectId && config.projectId.trim().length > 0) {
+    headers['Project-Id'] = config.projectId.trim();
+  }
+
   return headers;
 }
 
-function dispatchUnauthorized(endpoint: string): void {
-  if (typeof window === 'undefined') return;
-  if (endpoint.includes('/auth/login')) return;
-  
-  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+function parseOptionalInt(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value.trim(), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
-interface ParsedErrorPayload {
-  message: string;
-  data?: unknown;
+function extractFallbackMessage(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const record = raw as Record<string, unknown>;
+  if (typeof record.detail === 'string' && record.detail.length > 0) {
+    return record.detail;
+  }
+  if (typeof record.message === 'string' && record.message.length > 0) {
+    return record.message;
+  }
+  if (typeof record.title === 'string' && record.title.length > 0) {
+    return record.title;
+  }
+  if (typeof record.error === 'string' && record.error.length > 0) {
+    return record.error;
+  }
+  return undefined;
 }
 
-async function parseErrorPayload(response: Response): Promise<ParsedErrorPayload> {
-  const fallbackMsg = `HTTP Error ${response.status}: ${response.statusText}`;
-  
+function getHeaderCaseInsensitive(headers: Headers | undefined, name: string): string | null {
+  if (!headers || typeof headers.get !== 'function') return null;
+  return headers.get(name) ?? headers.get(name.toLowerCase());
+}
+
+async function parseErrorResponse(response: Response): Promise<ApiError> {
+  const defaultMessage = `HTTP Error ${response.status}: ${response.statusText || 'Request failed'}`;
+  const retryAfterSeconds = parseRetryAfterSeconds(
+    getHeaderCaseInsensitive(response.headers, 'Retry-After'),
+  );
+  const rateLimitRemaining = parseOptionalInt(
+    getHeaderCaseInsensitive(response.headers, 'RateLimit-Remaining') ??
+      getHeaderCaseInsensitive(response.headers, 'X-RateLimit-Remaining'),
+  );
+  const rateLimitResetSeconds = parseOptionalInt(
+    getHeaderCaseInsensitive(response.headers, 'RateLimit-Reset') ??
+      getHeaderCaseInsensitive(response.headers, 'X-RateLimit-Reset'),
+  );
+  const meta: ErrorRateLimitMeta = {
+    retryAfterSeconds,
+    rateLimitRemaining,
+    rateLimitResetSeconds,
+  };
+
+  let problemDetails: ProblemDetailsPayload | undefined;
+  let message = defaultMessage;
+
   try {
-    const text = await response.text();
-    if (!text) return { message: fallbackMsg };
-
-    try {
-      const json = JSON.parse(text) as Record<string, any>;
-      // RFC 7807 Problem Details inspection
-      let message = json.detail || json.title || json.message || json.error || fallbackMsg;
-      if (json.errorCode && !message.includes(json.errorCode)) {
-        message = `[${json.errorCode}] ${message}`;
-      }
-      return { message, data: json };
-    } catch {
-      return { message: text }; // Not JSON, return raw text
+    const raw: unknown = await response.json();
+    const parsed = problemDetailsSchema.safeParse(raw);
+    if (parsed.success) {
+      problemDetails = parsed.data;
+    }
+    const resolvedMessage = extractFallbackMessage(raw);
+    if (resolvedMessage) {
+      message = resolvedMessage;
     }
   } catch {
-    return { message: fallbackMsg }; // Failed to read response body
+    // Response body is not JSON; retain HTTP status message.
+  }
+
+  return new ApiError(response.status, message, problemDetails, meta);
+}
+
+function handleUnauthorizedSession(endpoint: string, status: number): void {
+  if (
+    status === 401 &&
+    typeof window !== 'undefined' &&
+    !endpoint.includes('/auth/login') &&
+    !endpoint.includes('/auth/refresh') &&
+    !window.location.pathname.startsWith('/login') &&
+    !window.location.pathname.startsWith('/register')
+  ) {
+    const redirectTarget = `/login?expired=true&callbackUrl=${encodeURIComponent(
+      window.location.pathname + window.location.search,
+    )}`;
+    window.location.assign(redirectTarget);
   }
 }
 
-async function assertOk(response: Response, endpoint: string): Promise<void> {
-  if (response.ok) return;
-
-  const { message, data } = await parseErrorPayload(response);
-  
-  if (response.status === 401) {
-    dispatchUnauthorized(endpoint);
+function parseContentDispositionFilename(disposition: string | null): string | null {
+  if (!disposition) return null;
+  const utfMatch = disposition.match(/filename\*\s*=\s*UTF-8''([^;\n]+)/i);
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1].replace(/['"]/g, '').trim());
+    } catch {
+      return utfMatch[1].replace(/['"]/g, '').trim();
+    }
   }
-  
-  throw new ApiError(response.status, message, data);
+  const plainMatch = disposition.match(/filename[^;=\n]*=\s*((['"]).*?\2|[^;\n]*)/i);
+  return plainMatch?.[1] ? plainMatch[1].replace(/['"]/g, '').trim() : null;
 }
 
-function resolveUrl(endpoint: string): string {
-  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  // The proxy re-applies the `/api` prefix itself (see [...path]/route.ts), so strip it here.
-  const withoutApiPrefix = normalizedEndpoint.startsWith('/api/')
-    ? normalizedEndpoint.slice(4)
-    : normalizedEndpoint;
-  return `${API_BASE_URL}${withoutApiPrefix}`;
+function toFetchInit(config: RequestConfig, headers: Record<string, string>): RequestInit {
+  const { ifMatch: _ifMatch, idempotencyKey: _idemp, projectId: _pid, headers: _h, ...rest } =
+    config;
+  return {
+    ...rest,
+    headers,
+  };
 }
 
-function extractFileName(disposition: string | null): string | undefined {
-  if (!disposition || !disposition.includes('filename=')) return undefined;
-  
-  const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-  return match?.[1]?.replace(/['"]/g, '');
+export async function apiRequestWithMeta<T>(
+  endpoint: string,
+  config: RequestConfig = {},
+): Promise<ResourceWithETag<T>> {
+  const url = resolveRequestUrl(endpoint);
+  const headers = buildPlainHeaders(config, true);
+
+  const response = await fetch(url, toFetchInit(config, headers));
+
+  if (!response.ok) {
+    handleUnauthorizedSession(endpoint, response.status);
+    throw await parseErrorResponse(response);
+  }
+
+  const etag = getHeaderCaseInsensitive(response.headers, 'ETag');
+
+  if (response.status === 204 || response.status === 205) {
+    return { data: undefined as T, etag, headers: response.headers };
+  }
+
+  const contentType = getHeaderCaseInsensitive(response.headers, 'content-type') || '';
+  if (contentType && !contentType.includes('application/json') && !contentType.includes('+json')) {
+    return { data: undefined as T, etag, headers: response.headers };
+  }
+
+  const data = (await response.json()) as T;
+  return { data, etag, headers: response.headers };
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
-
-export async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const headers = prepareJsonHeaders(options);
-  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
-  
-  await assertOk(response, endpoint);
-  
-  if (response.status === 204) return {} as T;
-  return response.json() as Promise<T>;
+export async function apiClient<T>(
+  endpoint: string,
+  config: RequestConfig = {},
+): Promise<T> {
+  const result = await apiRequestWithMeta<T>(endpoint, config);
+  return result.data;
 }
 
-export async function apiClientText(endpoint: string, options: RequestInit = {}): Promise<string> {
-  const headers = buildHeaders(options.headers as Record<string, string>);
-  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
-  
-  await assertOk(response, endpoint);
-  
+export async function apiClientText(
+  endpoint: string,
+  config: RequestConfig = {},
+): Promise<string> {
+  const url = resolveRequestUrl(endpoint);
+  const headers = buildPlainHeaders(config, false);
+
+  const response = await fetch(url, toFetchInit(config, headers));
+
+  if (!response.ok) {
+    handleUnauthorizedSession(endpoint, response.status);
+    throw await parseErrorResponse(response);
+  }
+
   return response.text();
 }
 
-export interface ApiBlobResult {
-  blob: Blob;
-  fileName?: string;
-  contentType?: string;
-  contentLength?: number;
+export async function apiBlobWithMeta(
+  endpoint: string,
+  config: RequestConfig = {},
+): Promise<BlobDownloadResult> {
+  const url = resolveRequestUrl(endpoint);
+  const headers = buildPlainHeaders(config, true);
+
+  const response = await fetch(url, toFetchInit(config, headers));
+
+  if (!response.ok) {
+    handleUnauthorizedSession(endpoint, response.status);
+    throw await parseErrorResponse(response);
+  }
+
+  const disposition = getHeaderCaseInsensitive(response.headers, 'content-disposition');
+  const fileName = parseContentDispositionFilename(disposition);
+  const contentType =
+    getHeaderCaseInsensitive(response.headers, 'content-type') || 'application/octet-stream';
+  const lengthStr = getHeaderCaseInsensitive(response.headers, 'content-length');
+  const parsedLen = lengthStr ? Number.parseInt(lengthStr, 10) : NaN;
+  const contentLength = Number.isFinite(parsedLen) ? parsedLen : null;
+  const etag = getHeaderCaseInsensitive(response.headers, 'ETag');
+
+  const blob = await response.blob();
+  return { blob, fileName, contentType, contentLength, etag, headers: response.headers };
 }
 
 export async function apiClientBlob(
   endpoint: string,
-  options: RequestInit = {}
-): Promise<ApiBlobResult> {
-  const headers = prepareJsonHeaders(options);
-  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
-  
-  await assertOk(response, endpoint);
-
-  const disposition = response.headers.get('content-disposition');
-  const contentType = response.headers.get('content-type') || undefined;
-  const contentLengthHeader = response.headers.get('content-length');
-  const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : undefined;
-
-  return { 
-    blob: await response.blob(), 
-    fileName: extractFileName(disposition),
-    contentType,
-    contentLength,
-  };
-}
-
-export interface ApiStreamResult {
-  stream: ReadableStream<Uint8Array>;
-  response: Response;
-  fileName?: string;
-  contentType?: string;
+  config: RequestConfig = {},
+): Promise<{
+  blob: Blob;
+  fileName: string | null;
+  contentType: string;
+  contentLength: number | null;
+}> {
+  const { blob, fileName, contentType, contentLength } = await apiBlobWithMeta(endpoint, config);
+  return { blob, fileName, contentType, contentLength };
 }
 
 export async function apiClientStream(
   endpoint: string,
-  options: RequestInit = {}
-): Promise<ApiStreamResult> {
-  const headers = prepareJsonHeaders(options);
-  const response = await fetch(resolveUrl(endpoint), { ...options, headers });
+  config: RequestConfig = {},
+): Promise<StreamDownloadResult> {
+  const url = resolveRequestUrl(endpoint);
+  const headers = buildPlainHeaders(config, true);
 
-  await assertOk(response, endpoint);
+  const response = await fetch(url, toFetchInit(config, headers));
+
+  if (!response.ok) {
+    handleUnauthorizedSession(endpoint, response.status);
+    throw await parseErrorResponse(response);
+  }
 
   if (!response.body) {
     throw new ApiError(response.status, 'Response body is empty');
   }
 
-  const disposition = response.headers.get('content-disposition');
-  const contentType = response.headers.get('content-type') || undefined;
+  const disposition = getHeaderCaseInsensitive(response.headers, 'content-disposition');
+  const fileName = parseContentDispositionFilename(disposition);
+  const contentType =
+    getHeaderCaseInsensitive(response.headers, 'content-type') || 'application/octet-stream';
+  const etag = getHeaderCaseInsensitive(response.headers, 'ETag');
 
   return {
     stream: response.body,
-    response,
-    fileName: extractFileName(disposition),
+    fileName,
     contentType,
+    etag,
+    headers: response.headers,
   };
 }

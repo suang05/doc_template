@@ -1,14 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  Search,
-  History,
-  Download,
-  FileCheck,
-  Eye,
-} from 'lucide-react';
-import { useLegalAudit } from '../hooks/useLegalAudit';
+import { Search, History, Download, FileCheck, Eye } from 'lucide-react';
 import {
   Button,
   Input,
@@ -18,8 +11,11 @@ import {
   EmptyState,
   PageHeader,
   Modal,
+  Toast,
 } from '@/components/ui';
-import { DocumentVersionDto } from '@/types/api';
+import { extractErrorMessage } from '@/lib/api/client';
+import type { DocumentVersionDto } from '@/lib/api/types';
+import { useLegalAudit } from '../hooks/useLegalAudit';
 
 export const AuditView: React.FC = () => {
   const {
@@ -34,12 +30,23 @@ export const AuditView: React.FC = () => {
   } = useLegalAudit();
 
   const [inspectVersion, setInspectVersion] = useState<DocumentVersionDto | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
+    null,
+  );
 
   const handleSearch = (e?: React.FormEvent, customRef?: string) => {
     if (e) e.preventDefault();
     const query = customRef || documentRef;
     if (customRef) setDocumentRef(customRef);
-    fetchVersions(query);
+    void fetchVersions(query);
+  };
+
+  const handleDownload = async (ref: string, version: number) => {
+    try {
+      await downloadVersion(ref, version);
+    } catch (err) {
+      setToast({ type: 'error', message: extractErrorMessage(err, 'ดาวน์โหลดเอกสารล้มเหลว') });
+    }
   };
 
   const columns: Column<DocumentVersionDto>[] = [
@@ -64,7 +71,7 @@ export const AuditView: React.FC = () => {
       header: 'เวอร์ชันแม่แบบ',
       accessor: (item) => (
         <span className="text-[11px] font-mono text-textMuted">
-          {item.templateVersionId ? item.templateVersionId.slice(0, 8) + '…' : '-'}
+          {item.templateVersionId ? `${item.templateVersionId.slice(0, 8)}…` : '-'}
         </span>
       ),
       align: 'center',
@@ -81,12 +88,7 @@ export const AuditView: React.FC = () => {
       header: 'การจัดการ',
       accessor: (item) => (
         <div className="flex items-center justify-end gap-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Eye}
-            onClick={() => setInspectVersion(item)}
-          >
+          <Button variant="ghost" size="sm" icon={Eye} onClick={() => setInspectVersion(item)}>
             ตรวจสอบ
           </Button>
           <Button
@@ -94,7 +96,7 @@ export const AuditView: React.FC = () => {
             size="sm"
             icon={Download}
             loading={downloadingVersion === item.version}
-            onClick={() => downloadVersion(item.documentRef, item.version)}
+            onClick={() => void handleDownload(item.documentRef, item.version)}
           >
             ดาวน์โหลด
           </Button>
@@ -106,7 +108,8 @@ export const AuditView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header Info */}
+      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
       <PageHeader
         title="ประวัติการจัดทำเอกสารทางกฎหมาย (Legal Audit Trail)"
         description="ตรวจสอบย้อนหลังทุกเวอร์ชันของเอกสารสัญญาตามเลขอ้างอิง (Document Ref)"
@@ -114,24 +117,20 @@ export const AuditView: React.FC = () => {
         iconColor="indigo"
       />
 
-      {/* Toolbar Search with Presets */}
       <Toolbar
         leftSlot={
           <div className="flex items-center gap-3 flex-wrap w-full">
-            <form onSubmit={(e) => handleSearch(e)} className="flex items-center gap-2 w-full max-w-md">
+            <form
+              onSubmit={(e) => handleSearch(e)}
+              className="flex items-center gap-2 w-full max-w-md"
+            >
               <Input
                 placeholder="ระบุเลขอ้างอิง เช่น DOC-2026-0001..."
                 icon={Search}
                 value={documentRef}
                 onChange={(e) => setDocumentRef(e.target.value)}
               />
-              <Button
-                variant="primary"
-                size="md"
-                type="submit"
-                loading={loading}
-                icon={Search}
-              >
+              <Button variant="primary" size="md" type="submit" loading={loading} icon={Search}>
                 ค้นหา
               </Button>
             </form>
@@ -157,7 +156,6 @@ export const AuditView: React.FC = () => {
         }
       />
 
-      {/* Table Result */}
       {error ? (
         <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-sm">
           {error}
@@ -186,7 +184,6 @@ export const AuditView: React.FC = () => {
         />
       )}
 
-      {/* Inspection Modal */}
       {inspectVersion && (
         <Modal
           isOpen={Boolean(inspectVersion)}
@@ -198,7 +195,9 @@ export const AuditView: React.FC = () => {
             <div className="p-3 bg-surfaceSubtle border border-border rounded-sm flex items-center justify-between text-xs">
               <div>
                 <span className="text-textMuted text-[11px] block">เวอร์ชันเอกสาร</span>
-                <span className="font-mono font-bold text-sky-800 text-sm">v{inspectVersion.version}</span>
+                <span className="font-mono font-bold text-sky-800 text-sm">
+                  v{inspectVersion.version}
+                </span>
               </div>
               <div className="text-right">
                 <span className="text-textMuted text-[11px] block">วัน-เวลาที่จัดทำ</span>
@@ -234,7 +233,7 @@ export const AuditView: React.FC = () => {
                 variant="primary"
                 icon={Download}
                 loading={downloadingVersion === inspectVersion.version}
-                onClick={() => downloadVersion(inspectVersion.documentRef, inspectVersion.version)}
+                onClick={() => void handleDownload(inspectVersion.documentRef, inspectVersion.version)}
               >
                 ดาวน์โหลดเอกสารต้นฉบับ
               </Button>
@@ -242,7 +241,6 @@ export const AuditView: React.FC = () => {
           </div>
         </Modal>
       )}
-
     </div>
   );
 };

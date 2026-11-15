@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { FieldMappingDto, TemplateSchemaDto } from '@/types/api';
+import type { FieldMappingDto, TemplateSchemaDto } from '@/lib/api/types';
 import { templatesApi } from '@/features/templates';
 import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
 
-// Build nested object from dot-notation paths: "customer.name" → { customer: { name: v } }
 function setNestedValue(obj: Record<string, unknown>, path: string, value: string): void {
   const parts = path.split('.');
   let cur = obj;
@@ -47,28 +46,30 @@ export function useGeneratorForm(templateId: string | undefined) {
     Promise.allSettled([
       templatesApi.getTemplateMappings(templateId),
       templatesApi.getTemplateSchema(templateId),
-    ]).then(([mappingsRes, schemaRes]) => {
-      if (controller.signal.aborted) return;
-      if (mappingsRes.status === 'fulfilled') {
-        const mappingsList = Array.isArray(mappingsRes.value) ? mappingsRes.value : [];
-        setMappings(mappingsList);
-        const initial: Record<string, string> = {};
-        for (const m of mappingsList) {
-          initial[m.sourcePath] = m.defaultValue ?? '';
+    ])
+      .then(([mappingsRes, schemaRes]) => {
+        if (controller.signal.aborted) return;
+        if (mappingsRes.status === 'fulfilled') {
+          const mappingsList = Array.isArray(mappingsRes.value) ? mappingsRes.value : [];
+          setMappings(mappingsList);
+          const initial: Record<string, string> = {};
+          for (const m of mappingsList) {
+            initial[m.sourcePath] = m.defaultValue ?? '';
+          }
+          setFormValues(initial);
         }
-        setFormValues(initial);
-      }
-      if (schemaRes.status === 'fulfilled' && schemaRes.value?.samplePayload) {
-        setTemplateSchema(schemaRes.value);
-        try {
-          const parsed = JSON.parse(schemaRes.value.samplePayload);
-          setFallbackJson(JSON.stringify(parsed, null, 2));
-        } catch {
-          setFallbackJson(schemaRes.value.samplePayload);
+        if (schemaRes.status === 'fulfilled' && schemaRes.value?.samplePayload) {
+          setTemplateSchema(schemaRes.value);
+          try {
+            const parsed: unknown = JSON.parse(schemaRes.value.samplePayload);
+            setFallbackJson(JSON.stringify(parsed, null, 2));
+          } catch {
+            setFallbackJson(schemaRes.value.samplePayload);
+          }
         }
-      }
-      setMappingsLoading(false);
-    }).finally(() => clearTimeout(timeoutId));
+        setMappingsLoading(false);
+      })
+      .finally(() => clearTimeout(timeoutId));
 
     return () => controller.abort();
   }, [templateId]);
@@ -77,7 +78,6 @@ export function useGeneratorForm(templateId: string | undefined) {
 
   const setField = useCallback((sourcePath: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [sourcePath]: value }));
-    // Clear error on change
     setFieldErrors((prev) => {
       if (!prev[sourcePath]) return prev;
       const next = { ...prev };
@@ -86,11 +86,29 @@ export function useGeneratorForm(templateId: string | undefined) {
     });
   }, []);
 
-  // Stable assembled JSON — recomputed when form values or mappings change
+  const applyServerFieldErrors = useCallback(
+    (rawFieldErrors: Record<string, string>): string | null => {
+      const mapped: Record<string, string> = {};
+      let firstKey: string | null = null;
+      for (const [key, msg] of Object.entries(rawFieldErrors)) {
+        const normalizedKey = key.startsWith('payload.') ? key.slice('payload.'.length) : key;
+        const matched =
+          mappings.find((m) => m.sourcePath === normalizedKey) ??
+          mappings.find((m) => m.placeholder === normalizedKey);
+        const targetKey = matched?.sourcePath ?? normalizedKey;
+        mapped[targetKey] = msg;
+        if (!firstKey) firstKey = targetKey;
+      }
+      setFieldErrors(mapped);
+      return firstKey;
+    },
+    [mappings],
+  );
+
   const assembledData = useMemo((): Record<string, unknown> => {
     if (!hasMappings) {
       try {
-        return JSON.parse(fallbackJson);
+        return JSON.parse(fallbackJson) as Record<string, unknown>;
       } catch {
         return {};
       }
@@ -102,27 +120,28 @@ export function useGeneratorForm(templateId: string | undefined) {
     return result;
   }, [hasMappings, formValues, fallbackJson]);
 
-  // Returns true if valid, false + sets field errors if not
-  const validateForm = useCallback((): boolean => {
+  const validateForm = useCallback((): { valid: boolean; firstErrorField: string | null } => {
     if (!hasMappings) {
       try {
         JSON.parse(fallbackJson);
         setJsonError(null);
-        return true;
+        return { valid: true, firstErrorField: null };
       } catch {
         setJsonError('รูปแบบ JSON ไม่ถูกต้อง กรุณาตรวจสอบวงเล็บหรือเครื่องหมายจุลภาค');
-        return false;
+        return { valid: false, firstErrorField: 'fallbackJson' };
       }
     }
     const errors: Record<string, string> = {};
+    let firstErrorField: string | null = null;
     const safeMappings = Array.isArray(mappings) ? mappings : [];
     for (const m of safeMappings) {
       if (m.required && !formValues[m.sourcePath]?.trim()) {
         errors[m.sourcePath] = 'กรุณากรอกข้อมูลนี้';
+        if (!firstErrorField) firstErrorField = m.sourcePath;
       }
     }
     setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+    return { valid: Object.keys(errors).length === 0, firstErrorField };
   }, [hasMappings, mappings, formValues, fallbackJson]);
 
   const handleFallbackChange = useCallback((json: string) => {
@@ -136,14 +155,16 @@ export function useGeneratorForm(templateId: string | undefined) {
   }, []);
 
   const fillSampleData = useCallback(() => {
-    // Parse samplePayload once; use it to prime fallbackJson and as lookup during field fill
     let parsedSample: Record<string, unknown> | null = null;
     if (templateSchema?.samplePayload) {
       try {
-        parsedSample = JSON.parse(templateSchema.samplePayload);
-        setFallbackJson(JSON.stringify(parsedSample, null, 2));
-        setJsonError(null);
-        if (!hasMappings) return;
+        const parsed: unknown = JSON.parse(templateSchema.samplePayload);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          parsedSample = parsed as Record<string, unknown>;
+          setFallbackJson(JSON.stringify(parsedSample, null, 2));
+          setJsonError(null);
+          if (!hasMappings) return;
+        }
       } catch {
         parsedSample = null;
       }
@@ -151,7 +172,7 @@ export function useGeneratorForm(templateId: string | undefined) {
 
     if (!hasMappings) {
       setFallbackJson(
-        '{\n  "contractNo": "SMK-2026-999",\n  "customerName": "บริษัท ทดสอบจำกัด (มหาชน)",\n  "amount": 999000,\n  "effectiveDate": "2026-12-31"\n}'
+        '{\n  "contractNo": "SMK-2026-999",\n  "customerName": "บริษัท ทดสอบจำกัด (มหาชน)",\n  "amount": 999000,\n  "effectiveDate": "2026-12-31"\n}',
       );
       setJsonError(null);
       return;
@@ -162,7 +183,6 @@ export function useGeneratorForm(templateId: string | undefined) {
     for (const m of safeMappings) {
       if (sampleData[m.sourcePath]) continue;
 
-      // samplePayload is keyed by placeholder; try that first, then sourcePath for compat
       if (parsedSample !== null) {
         const val = parsedSample[m.placeholder] ?? parsedSample[m.sourcePath];
         if (val !== undefined && typeof val !== 'object') {
@@ -177,9 +197,20 @@ export function useGeneratorForm(templateId: string | undefined) {
       }
 
       const pathLower = m.sourcePath.toLowerCase();
-      if (m.transform === 'ThaiBahtText' || pathLower.includes('amount') || pathLower.includes('price') || pathLower.includes('total') || pathLower.includes('ยอด')) {
+      if (
+        m.transform === 'thai_baht_text' ||
+        pathLower.includes('amount') ||
+        pathLower.includes('price') ||
+        pathLower.includes('total') ||
+        pathLower.includes('ยอด')
+      ) {
         sampleData[m.sourcePath] = '1500000.00';
-      } else if (m.transform === 'ThaiDateLong' || m.transform === 'ThaiDateShort' || pathLower.includes('date') || pathLower.includes('วันที่')) {
+      } else if (
+        m.transform === 'thai_date' ||
+        m.transform === 'thai_date_short' ||
+        pathLower.includes('date') ||
+        pathLower.includes('วันที่')
+      ) {
         sampleData[m.sourcePath] = new Date().toISOString().split('T')[0];
       } else if (pathLower.includes('name') || pathLower.includes('ชื่อ')) {
         sampleData[m.sourcePath] = 'บริษัท สมชายและบุตร จำกัด';
@@ -202,6 +233,7 @@ export function useGeneratorForm(templateId: string | undefined) {
     formValues,
     setField,
     fieldErrors,
+    applyServerFieldErrors,
     fallbackJson,
     handleFallbackChange,
     jsonError,
@@ -211,4 +243,3 @@ export function useGeneratorForm(templateId: string | undefined) {
     templateSchema,
   };
 }
-

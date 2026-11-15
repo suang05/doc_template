@@ -1,15 +1,36 @@
 import { apiClient } from '@/lib/api/client';
-import { ApiResponse, TemplateDatasetDto, SaveTemplateDatasetItem } from '@/types/api';
+import type {
+  ApiEnvelope,
+  SaveTemplateDatasetItem,
+  TemplateDatasetDto,
+} from '@/lib/api/types';
 
-export async function getTemplateDatasets(templateId: string): Promise<TemplateDatasetDto[]> {
-  const res = await apiClient<ApiResponse<TemplateDatasetDto[]>>(`/api/v1/templates/${templateId}/datasets`);
+export const getTemplateDatasets = async (
+  templateId: string,
+): Promise<TemplateDatasetDto[]> => {
+  const res = await apiClient<ApiEnvelope<TemplateDatasetDto[]>>(
+    `/api/v1/templates/${templateId}/datasets`,
+  );
   return res.data;
-}
+};
 
-export async function saveTemplateDatasets(templateId: string, items: SaveTemplateDatasetItem[]): Promise<TemplateDatasetDto[]> {
-  const res = await apiClient<ApiResponse<TemplateDatasetDto[]>>(`/api/v1/templates/${templateId}/datasets`, {
-    method: 'PUT',
-    body: JSON.stringify({ datasets: items }),
-  });
+export const saveTemplateDatasets = async (
+  templateId: string,
+  datasets: SaveTemplateDatasetItem[],
+  ifMatch?: string | null,
+): Promise<TemplateDatasetDto[]> => {
+  const res = await apiClient<ApiEnvelope<TemplateDatasetDto[]>>(
+    `/api/v1/templates/${templateId}/datasets`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ datasets }),
+      ifMatch,
+    },
+  );
   return res.data;
-}
+};
+
+export const templateDatasetsApi = {
+  getTemplateDatasets,
+  saveTemplateDatasets,
+};

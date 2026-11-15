@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { GenerationLogDto } from '@/types/api';
+import { extractErrorMessage } from '@/lib/api/client';
+import type { GenerationLogDto } from '@/lib/api/types';
 import { logsApi } from '../api/logs.api';
 
 export function useGenerationLogs() {
@@ -20,15 +21,15 @@ export function useGenerationLogs() {
       const res = await logsApi.listLogs(page, limit, appFilter);
       setLogs(res.data);
       setTotal(res.pagination.totalCount);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดประวัติการสร้างเอกสารได้');
+    } catch (err) {
+      setError(extractErrorMessage(err, 'ไม่สามารถโหลดประวัติการสร้างเอกสารได้'));
     } finally {
       setLoading(false);
     }
   }, [page, limit, appFilter]);
 
   useEffect(() => {
-    fetchLogs();
+    void fetchLogs();
   }, [fetchLogs]);
 
   return {

@@ -14,7 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useVersionHistory } from '../hooks/useVersionHistory';
-import { PageHeader, Button, Select, Badge, EmptyState } from '@/components/ui';
+import { PageHeader, Button, Select, Badge, EmptyState, ConflictBanner } from '@/components/ui';
 
 const DiffEditor = dynamic(
   () => import('@monaco-editor/react').then((mod) => mod.DiffEditor),
@@ -36,7 +36,10 @@ export const VersionHistoryView: React.FC = () => {
     rollingBack,
     error,
     successMessage,
+    conflict,
+    clearConflict,
     handleRollback,
+    refresh,
   } = useVersionHistory();
 
   const [sideBySide, setSideBySide] = useState(true);
@@ -89,6 +92,15 @@ export const VersionHistoryView: React.FC = () => {
         </div>
       )}
 
+      <ConflictBanner
+        conflict={conflict}
+        onReload={async () => {
+          clearConflict();
+          await refresh();
+        }}
+        onDismiss={clearConflict}
+      />
+
       {/* Main Split Layout: Left Timeline (30%), Right Diff Editor (70%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-13rem)] min-h-[500px]">
         {/* Left Column: Revision Timeline */}
@@ -99,7 +111,12 @@ export const VersionHistoryView: React.FC = () => {
               ลำดับเวอร์ชัน ({versions.length})
             </span>
             {selectedTemplate && (
-              <Badge format={selectedTemplate.fileFormat || 'html'} size="sm">
+              <Badge
+                format={
+                  (selectedTemplate.fileFormat as 'html' | 'pdf' | 'docx' | 'xlsx') || 'html'
+                }
+                size="sm"
+              >
                 {(selectedTemplate.fileFormat || 'html').toUpperCase()}
               </Badge>
             )}

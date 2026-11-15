@@ -4,11 +4,11 @@ import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dataconnectionsApi } from '../api/dataconnections.api';
 import type {
-  DataConnection,
   CreateDataConnectionRequest,
-  UpdateDataConnectionRequest,
+  DataConnectionDto,
   TestDataConnectionRequest,
-} from '@/types/api';
+  UpdateDataConnectionRequest,
+} from '@/lib/api/types';
 
 export const DATA_CONNECTIONS_QUERY_KEY = ['dataconnections'] as const;
 
@@ -20,7 +20,7 @@ export function useDataConnections() {
     isLoading,
     error: queryError,
     refetch,
-  } = useQuery<DataConnection[], Error>({
+  } = useQuery<DataConnectionDto[], Error>({
     queryKey: DATA_CONNECTIONS_QUERY_KEY,
     queryFn: async () => {
       const data = await dataconnectionsApi.getAll();
@@ -31,22 +31,30 @@ export function useDataConnections() {
   const createMutation = useMutation({
     mutationFn: (data: CreateDataConnectionRequest) => dataconnectionsApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateDataConnectionRequest }) =>
-      dataconnectionsApi.update(id, data),
+    mutationFn: ({
+      id,
+      data,
+      ifMatch,
+    }: {
+      id: string;
+      data: UpdateDataConnectionRequest;
+      ifMatch?: string | null;
+    }) => dataconnectionsApi.update(id, data, ifMatch),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => dataconnectionsApi.delete(id),
+    mutationFn: ({ id, ifMatch }: { id: string; ifMatch?: string | null }) =>
+      dataconnectionsApi.delete(id, ifMatch),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: DATA_CONNECTIONS_QUERY_KEY });
     },
   });
 
@@ -58,25 +66,29 @@ export function useDataConnections() {
     async (data: CreateDataConnectionRequest) => {
       return await createMutation.mutateAsync(data);
     },
-    [createMutation]
+    [createMutation],
   );
 
   const updateConnection = useCallback(
-    async (id: string, data: UpdateDataConnectionRequest) => {
-      return await updateMutation.mutateAsync({ id, data });
+    async (id: string, data: UpdateDataConnectionRequest, ifMatch?: string | null) => {
+      return await updateMutation.mutateAsync({ id, data, ifMatch });
     },
-    [updateMutation]
+    [updateMutation],
   );
 
   const deleteConnection = useCallback(
-    async (id: string) => {
-      await deleteMutation.mutateAsync(id);
+    async (id: string, ifMatch?: string | null) => {
+      await deleteMutation.mutateAsync({ id, ifMatch });
     },
-    [deleteMutation]
+    [deleteMutation],
   );
 
   const testConnection = useCallback(async (data: TestDataConnectionRequest) => {
     return await dataconnectionsApi.test(data);
+  }, []);
+
+  const checkSavedConnection = useCallback(async (id: string) => {
+    return await dataconnectionsApi.checkConnectivity(id);
   }, []);
 
   const error =
@@ -88,12 +100,17 @@ export function useDataConnections() {
 
   return {
     connections,
-    isLoading: isLoading || createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
+    isLoading:
+      isLoading ||
+      createMutation.isPending ||
+      updateMutation.isPending ||
+      deleteMutation.isPending,
     error,
     fetchConnections,
     createConnection,
     updateConnection,
     deleteConnection,
     testConnection,
+    checkSavedConnection,
   };
 }

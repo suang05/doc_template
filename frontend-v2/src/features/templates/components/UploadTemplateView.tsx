@@ -3,10 +3,10 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { FileText, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
 import { templatesApi } from '../api/templates.api';
-import { ApiError } from '@/lib/api/client';
+import { ApiError, extractErrorMessage } from '@/lib/api/client';
 import { DocumentCategory, tokens } from '@/tokens';
 import { Badge, PdfPreviewPanel } from '@/components/ui';
-import { SaveFieldMappingItem } from '@/types/api';
+import type { SaveFieldMappingItem } from '@/lib/api/types';
 import { buildMockJson } from './mockJsonBuilder';
 import { UploadWizardHeader } from './upload/UploadWizardHeader';
 import { UploadFileDropzoneStep } from './upload/UploadFileDropzoneStep';
@@ -149,8 +149,8 @@ export const UploadTemplateView: React.FC<UploadTemplateViewProps> = ({ onSucces
       setMappingDrafts(drafts);
       setJsonPayload(buildMockJson(placeholders));
       setStep(2);
-    } catch (err: any) {
-      setError(err.message || 'วิเคราะห์ไฟล์ล้มเหลว');
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, 'วิเคราะห์ไฟล์ล้มเหลว'));
     } finally {
       setUploading(false);
     }

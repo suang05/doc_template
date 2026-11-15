@@ -1,4 +1,4 @@
-import type { DataSourceType } from '@/types/api';
+import type { DataSourceType } from '@/constants/domain';
 import type { MappingRow, PlaceholderType } from './mappingMapper';
 
 export type PreviewResult = {

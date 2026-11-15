@@ -1,57 +1,51 @@
 import { apiClient, apiClientBlob } from '@/lib/api/client';
-import {
-  ApiResponse,
-  GenerateDocumentRequest,
-  GenerateDocumentResponse,
-  GenerateDocumentResponseSchema,
-  PreviewDocumentRequest,
+import type {
+  ApiEnvelope,
   DocumentVersionDto,
-  DocumentJobDto,
-  DocumentJobDtoSchema,
-} from '@/types/api';
+  GenerateDocumentResultDto,
+} from '@/lib/api/types';
+import {
+  GenerateDocumentResponseSchema,
+  type GenerateDocumentFormRequest,
+  type PreviewDocumentRequest,
+} from '../schemas/document.schema';
 
 export const documentsApi = {
   /**
-   * Generate production document (SSoT: POST /api/v1/documents/generate/{slug})
+   * Generate production document synchronously (SSoT: POST /api/v1/documents, idempotent)
    */
-  async generateDocument(slug: string, request: GenerateDocumentRequest): Promise<GenerateDocumentResponse> {
-    const res = await apiClient<ApiResponse<GenerateDocumentResponse>>(`/api/v1/documents/generate/${slug}`, {
+  async generateDocument(
+    slug: string,
+    request: GenerateDocumentFormRequest,
+    idempotencyKey?: string,
+  ): Promise<GenerateDocumentResultDto> {
+    const res = await apiClient<ApiEnvelope<GenerateDocumentResultDto>>('/api/v1/documents', {
       method: 'POST',
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        slug,
+        payload: request.payload,
+        outputFormat: request.outputFormat,
+        documentRef: request.documentRef ?? null,
+        changeNote: request.changeNote ?? null,
+      }),
+      idempotencyKey: idempotencyKey || crypto.randomUUID(),
     });
-    return GenerateDocumentResponseSchema.parse(res.data);
+    const parsed = GenerateDocumentResponseSchema.parse(res.data);
+    return {
+      ...parsed,
+      documentRef: parsed.documentRef ?? null,
+    };
   },
 
   /**
-   * Enqueue asynchronous document generation job (SSoT: POST /api/v1/documents/generate-async)
-   */
-  async generateDocumentAsync(slug: string, request: GenerateDocumentRequest): Promise<DocumentJobDto> {
-    const res = await apiClient<ApiResponse<DocumentJobDto>>(`/api/v1/documents/generate-async?slug=${encodeURIComponent(slug)}`, {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    return DocumentJobDtoSchema.parse(res.data);
-  },
-
-  /**
-   * Poll document job status (SSoT: GET /api/v1/documents/jobs/{jobId})
-   */
-  async getDocumentJob(jobId: string): Promise<DocumentJobDto> {
-    const res = await apiClient<ApiResponse<DocumentJobDto>>(`/api/v1/documents/jobs/${jobId}`, {
-      method: 'GET',
-    });
-    return DocumentJobDtoSchema.parse(res.data);
-  },
-
-  /**
-   * Stream live preview PDF (SSoT: POST /api/v1/documents/preview)
+   * Stream live preview PDF (SSoT: POST /api/v1/documents/preview/{slug?})
    */
   async previewDocument(
     slug?: string,
     request: PreviewDocumentRequest = { payload: {} },
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal },
   ): Promise<Blob> {
-    const endpoint = slug ? `/api/v1/documents/preview/${slug}` : `/api/v1/documents/preview`;
+    const endpoint = slug ? `/api/v1/documents/preview/${slug}` : '/api/v1/documents/preview';
     const { blob } = await apiClientBlob(endpoint, {
       method: 'POST',
       body: JSON.stringify(request),
@@ -64,11 +58,11 @@ export const documentsApi = {
    * Get legal audit versions of a document (SSoT: GET /api/v1/document-versions/{documentRef}/versions)
    */
   async getDocumentVersions(documentRef: string): Promise<DocumentVersionDto[]> {
-    const res = await apiClient<ApiResponse<DocumentVersionDto[]>>(
-      `/api/v1/document-versions/${documentRef}/versions`,
+    const res = await apiClient<ApiEnvelope<DocumentVersionDto[]>>(
+      `/api/v1/document-versions/${encodeURIComponent(documentRef)}/versions`,
       {
         method: 'GET',
-      }
+      },
     );
     return res.data;
   },
@@ -76,17 +70,36 @@ export const documentsApi = {
   /**
    * Download historical document artifact (SSoT: GET /api/v1/document-versions/{documentRef}/versions/{version}/download)
    */
-  async downloadDocumentVersion(documentRef: string, version: number): Promise<{ blob: Blob; fileName?: string }> {
-    return apiClientBlob(`/api/v1/document-versions/${documentRef}/versions/${version}/download`, {
-      method: 'GET',
-    });
+  async downloadDocumentVersion(
+    documentRef: string,
+    version: number,
+  ): Promise<{ blob: Blob; fileName?: string | null }> {
+    return apiClientBlob(
+      `/api/v1/document-versions/${encodeURIComponent(documentRef)}/versions/${version}/download`,
+      {
+        method: 'GET',
+      },
+    );
   },
 
-  async getDownloadUrlByLogId(logId: string): Promise<{ url: string; expiresInSeconds: number }> {
-    const res = await apiClient<ApiResponse<{ url: string; expiresInSeconds: number }>>(`/api/v1/generation-logs/${logId}/artifact`, {
+  async getDownloadUrlByLogId(
+    logId: string,
+  ): Promise<{ url: string; expiresInSeconds: number }> {
+    const res = await apiClient<ApiEnvelope<{ url: string; expiresInSeconds: number }>>(
+      `/api/v1/generation-logs/${logId}/artifact/url`,
+      {
+        method: 'GET',
+      },
+    );
+    return res.data;
+  },
+
+  async downloadArtifactFileByLogId(
+    logId: string,
+  ): Promise<{ blob: Blob; fileName?: string | null }> {
+    return apiClientBlob(`/api/v1/generation-logs/${logId}/artifact/file`, {
       method: 'GET',
     });
-    return res.data;
   },
 
   /**
@@ -99,7 +112,7 @@ export const documentsApi = {
       formData.append('jsonData', jsonData);
     }
 
-    const { blob } = await apiClientBlob(`/api/v1/documents/render/stateless`, {
+    const { blob } = await apiClientBlob('/api/v1/documents/render/stateless', {
       method: 'POST',
       body: formData,
     });

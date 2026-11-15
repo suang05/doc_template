@@ -7,6 +7,9 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Filters;
 using SmkDoc.Api.OpenApi;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
+using SmkDoc.Application.Modules.TenantManagement.BreakGlass.DTOs;
 
 namespace SmkDoc.Tests.Api.Filters;
 
@@ -113,5 +116,42 @@ public sealed class ETagResponseFilterTests
 
         // Step 3: Assert
         context.HttpContext.Response.Headers.ContainsKey(OpenApiNames.ETagHeader).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task OnActionExecutionAsync_WhenApiKeyResultDtoReturned_ShouldSetFormattedETagHeader()
+    {
+        var sut = CreateSut();
+        var dto = new ApiKeyResultDto(Guid.NewGuid(), "Billing", "billing", true, null, DateTimeOffset.UtcNow, "ReadOnly", "smk_live_****abcd", Version: 3);
+        var (context, next) = CreateFilterPipeline(new OkObjectResult(new ApiResponse<ApiKeyResultDto>(dto)));
+
+        await sut.OnActionExecutionAsync(context, next);
+
+        context.HttpContext.Response.Headers.ETag.ToString().Should().Be("\"v3\"");
+    }
+
+    [Fact]
+    public async Task OnActionExecutionAsync_WhenUserResultDtoReturned_ShouldSetFormattedETagHeader()
+    {
+        var sut = CreateSut();
+        var dto = new UserResultDto(Guid.NewGuid(), "user@smkdoc.com", "Somchai", "Jaidee", "Admin", true, DateTimeOffset.UtcNow, Version: 5);
+        var (context, next) = CreateFilterPipeline(new OkObjectResult(new ApiResponse<UserResultDto>(dto)));
+
+        await sut.OnActionExecutionAsync(context, next);
+
+        context.HttpContext.Response.Headers.ETag.ToString().Should().Be("\"v5\"");
+    }
+
+    [Fact]
+    public async Task OnActionExecutionAsync_WhenBreakGlassGrantResultDtoReturned_ShouldSetFormattedETagHeader()
+    {
+        var sut = CreateSut();
+        var now = DateTimeOffset.UtcNow;
+        var dto = new BreakGlassGrantResultDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Support", now, now.AddHours(1), null, true, Version: 2);
+        var (context, next) = CreateFilterPipeline(new OkObjectResult(new ApiResponse<BreakGlassGrantResultDto>(dto)));
+
+        await sut.OnActionExecutionAsync(context, next);
+
+        context.HttpContext.Response.Headers.ETag.ToString().Should().Be("\"v2\"");
     }
 }

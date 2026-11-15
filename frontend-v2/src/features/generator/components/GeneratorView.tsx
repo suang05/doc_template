@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { CheckCircle2 } from 'lucide-react';
 import { useTemplates } from '@/features/templates';
 import { useDocumentGenerator } from '../hooks/useDocumentGenerator';
 import { useGeneratorForm } from '../hooks/useGeneratorForm';
 import { useFormPreview } from '../hooks/useFormPreview';
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst';
-import { OutputFormat } from '@/types/api';
+import { ApiError } from '@/lib/api/client';
+import type { OutputFormat } from '@/constants/domain';
 import { Toast } from '@/components/ui';
 import { GeneratorActionBar } from './GeneratorActionBar';
 import { GeneratorSettingsCard } from './GeneratorSettingsCard';
@@ -18,19 +21,41 @@ export interface GeneratorViewProps {
   initialSlug?: string;
 }
 
+function focusFieldByName(fieldName: string | null) {
+  if (!fieldName || typeof document === 'undefined') return;
+  const el = document.querySelector<HTMLElement>(
+    `[name="${CSS.escape(fieldName)}"]`,
+  );
+  el?.focus();
+}
+
 export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => {
   const { templates, loading: templatesLoading } = useTemplates();
-  const { generate, loading: generating, error: generateError, result, resetResult } = useDocumentGenerator();
+  const {
+    generate,
+    enqueueBackground,
+    loading: generating,
+    enqueuing,
+    error: generateError,
+    result,
+    queuedJob,
+    resetResult,
+  } = useDocumentGenerator();
 
-  const [selectedSlug, setSelectedSlug] = useAutoSelectFirst(templates, (t) => t.slug, initialSlug);
+  const [selectedSlug, setSelectedSlug] = useAutoSelectFirst(
+    templates,
+    (t) => t.slug,
+    initialSlug,
+  );
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('pdf');
   const [documentRef, setDocumentRef] = useState('DOC-2026-0001');
   const [changeNote, setChangeNote] = useState('สร้างเอกสารฉบับจริง');
-  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
+    null,
+  );
 
   const selectedTemplate = templates.find((t) => t.slug === selectedSlug);
 
-  // Auto-reset output format if template format changes
   useEffect(() => {
     const tFmt = selectedTemplate?.fileFormat;
     if (tFmt === 'html' && outputFormat !== 'pdf') {
@@ -42,7 +67,6 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
     }
   }, [selectedTemplate?.fileFormat, outputFormat]);
 
-  // Field mappings + form state for selected template
   const {
     mappings,
     mappingsLoading,
@@ -50,6 +74,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
     formValues,
     setField,
     fieldErrors,
+    applyServerFieldErrors,
     fallbackJson,
     handleFallbackChange,
     jsonError,
@@ -58,7 +83,6 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
     fillSampleData,
   } = useGeneratorForm(selectedTemplate?.id);
 
-  // Auto-preview — debounced 800ms on data change
   const preview = useFormPreview(selectedTemplate?.id, assembledData);
 
   const handleTemplateChange = (slug: string) => {
@@ -71,22 +95,58 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
       setToast({ type: 'error', message: 'กรุณาเลือกแม่แบบเอกสาร' });
       return;
     }
-    if (!validateForm()) return;
+    const validation = validateForm();
+    if (!validation.valid) {
+      focusFieldByName(validation.firstErrorField);
+      return;
+    }
 
     try {
       await generate(selectedSlug, {
-        payload: assembledData as Record<string, any>,
-        outputFormat: outputFormat,
+        payload: assembledData,
+        outputFormat,
         documentRef: documentRef || undefined,
         changeNote: changeNote || undefined,
       });
-    } catch {
-      // error handled by generateError state
+    } catch (err) {
+      if (err instanceof ApiError && Object.keys(err.fieldErrors).length > 0) {
+        const firstServerField = applyServerFieldErrors(err.fieldErrors);
+        focusFieldByName(firstServerField);
+      }
+    }
+  };
+
+  const handleEnqueueBackground = async () => {
+    if (!selectedSlug) {
+      setToast({ type: 'error', message: 'กรุณาเลือกแม่แบบเอกสาร' });
+      return;
+    }
+    const validation = validateForm();
+    if (!validation.valid) {
+      focusFieldByName(validation.firstErrorField);
+      return;
+    }
+
+    try {
+      const job = await enqueueBackground(selectedSlug, {
+        payload: assembledData,
+        outputFormat,
+        documentRef: documentRef || undefined,
+      });
+      setToast({
+        type: 'success',
+        message: `ส่งเข้าคิว Pipeline C แล้ว (Job: ${job.jobId.slice(0, 8)})`,
+      });
+    } catch (err) {
+      if (err instanceof ApiError && Object.keys(err.fieldErrors).length > 0) {
+        const firstServerField = applyServerFieldErrors(err.fieldErrors);
+        focusFieldByName(firstServerField);
+      }
     }
   };
 
   const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+    void navigator.clipboard.writeText(text).then(() => {
       setToast({ type: 'success', message: 'คัดลอก URL แล้ว' });
     });
   };
@@ -114,23 +174,35 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
 
   return (
     <div className="flex flex-col h-full w-full min-h-0 gap-3">
-      {/* Top action bar */}
       <GeneratorActionBar
         generating={generating}
+        enqueuing={enqueuing}
         previewLoading={preview.loading}
         onRefreshPreview={preview.refresh}
-        onGenerate={handleGenerate}
+        onGenerate={() => void handleGenerate()}
+        onEnqueueBackground={() => void handleEnqueueBackground()}
       />
 
-      {/* Main split content */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden">
-        {/* Left: Config + Data form */}
         <div className="lg:col-span-5 flex flex-col gap-3 overflow-y-auto pr-1 pb-4 custom-scrollbar">
-          <GeneratorResultCard
-            result={result}
-            error={generateError}
-            onCopy={handleCopy}
-          />
+          {queuedJob && (
+            <div className="p-3 bg-sky-50 border border-sky-200 rounded-sm text-xs text-sky-900 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                <div>
+                  <p className="font-semibold">ส่งคำสั่งเข้าคิว Pipeline C แล้ว</p>
+                  <p className="font-mono text-[11px] text-sky-700">
+                    Job ID: {queuedJob.jobId} ({queuedJob.status})
+                  </p>
+                </div>
+              </div>
+              <Link href="/jobs" className="text-primary font-semibold hover:underline shrink-0">
+                ติดตามงาน &rarr;
+              </Link>
+            </div>
+          )}
+
+          <GeneratorResultCard result={result} error={generateError} onCopy={handleCopy} />
 
           <GeneratorSettingsCard
             selectedTemplate={selectedTemplate}
@@ -161,7 +233,6 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
           />
         </div>
 
-        {/* Right: Live PDF Preview */}
         <GeneratorPreviewPanel
           pdfUrl={preview.pdfUrl}
           loading={preview.loading}
@@ -173,14 +244,7 @@ export const GeneratorView: React.FC<GeneratorViewProps> = ({ initialSlug }) => 
         />
       </div>
 
-      {/* Toast notifications */}
-      {toast && (
-        <Toast
-          type={toast.type}
-          message={toast.message}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 };

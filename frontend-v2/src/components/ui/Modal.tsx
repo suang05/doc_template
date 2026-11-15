@@ -1,4 +1,6 @@
-import React, { useEffect } from 'react';
+'use client';
+
+import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export interface ModalProps {
@@ -18,14 +20,40 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   maxWidth = 'md',
 }) => {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    const frame = window.requestAnimationFrame(() => {
+      const container = dialogRef.current;
+      if (!container) return;
+      const autoTarget = container.querySelector<HTMLElement>('[autofocus]');
+      if (autoTarget) {
+        autoTarget.focus();
+      } else if (!container.contains(document.activeElement)) {
+        container.focus();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.cancelAnimationFrame(frame);
+      const prev = previousFocusRef.current;
+      if (prev && prev.isConnected) {
+        prev.focus();
+      }
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -43,15 +71,22 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
       <div
-        className={`w-full ${maxWidthClass} bg-surface rounded-sm border border-border shadow-lg flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-150`}
+        ref={dialogRef}
+        tabIndex={-1}
+        className={`w-full ${maxWidthClass} bg-surface rounded-sm border border-border shadow-lg flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-150 outline-none`}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surfaceSubtle">
-          <h3 className="text-sm font-semibold text-textPrimary">{title}</h3>
+          <h3 id={titleId} className="text-sm font-semibold text-textPrimary">
+            {title}
+          </h3>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="ปิดหน้าต่าง"
             className="p-1 rounded-sm text-textMuted hover:text-textPrimary hover:bg-slate-200/50 transition-colors"
           >
             <X className="w-4 h-4" />

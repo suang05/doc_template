@@ -1,5 +1,6 @@
 import { tokens } from '@/tokens';
-import type { FieldMappingDto, DataSourceType, SaveFieldMappingItem } from '@/types/api';
+import type { DataSourceType } from '@/constants/domain';
+import type { FieldMappingDto, SaveFieldMappingItem } from '@/lib/api/types';
 
 // ── PlaceholderType ────────────────────────────────────────────────────────────
 // Frontend-only concept — never persisted to the API.

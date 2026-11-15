@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { templatesApi } from '@/features/templates/api/templates.api';
-import { ApiError } from '@/lib/api/client';
-import { PreviewErrorDetails } from '@/features/studio/hooks/useLivePreview';
+import { ApiError, extractErrorMessage } from '@/lib/api/client';
+import type { PreviewErrorDetails } from '@/features/studio/hooks/useLivePreview';
 
 export function useFormPreview(
   templateId: string | undefined,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
 ) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,6 @@ export function useFormPreview(
 
   const runPreview = useCallback(
     async (id: string, payload: Record<string, unknown>) => {
-      // Abort any pending in-flight request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -35,8 +34,10 @@ export function useFormPreview(
       const startTime = performance.now();
 
       try {
-        const blob = await templatesApi.previewMappings(id, payload, { signal: controller.signal });
-        
+        const blob = await templatesApi.previewMappings(id, payload, {
+          signal: controller.signal,
+        });
+
         if (controller.signal.aborted) return;
 
         const durationMs = Math.round(performance.now() - startTime);
@@ -47,20 +48,26 @@ export function useFormPreview(
         const url = URL.createObjectURL(blob);
         prevUrlRef.current = url;
         setPdfUrl(url);
-      } catch (e: any) {
-        if (e.name === 'AbortError' || controller.signal.aborted) {
+      } catch (e: unknown) {
+        if ((e instanceof Error && e.name === 'AbortError') || controller.signal.aborted) {
           return;
         }
 
         if (e instanceof ApiError) {
-          setError(e.message || 'ไม่สามารถแสดง Preview ได้');
+          const mappedErrors =
+            Object.keys(e.fieldErrors).length > 0
+              ? Object.fromEntries(
+                  Object.entries(e.fieldErrors).map(([k, msg]) => [k, [msg]]),
+                )
+              : undefined;
+          setError(extractErrorMessage(e, 'ไม่สามารถแสดง Preview ได้'));
           setErrorDetails({
             code: e.errorCode,
             detail: e.detail,
-            errors: e.errors,
+            errors: mappedErrors,
           });
         } else {
-          setError(e.message || 'ไม่สามารถแสดง Preview ได้');
+          setError(extractErrorMessage(e, 'ไม่สามารถแสดง Preview ได้'));
           setErrorDetails(null);
         }
       } finally {
@@ -69,10 +76,9 @@ export function useFormPreview(
         }
       }
     },
-    []
+    [],
   );
 
-  // Serialize data for stable comparison — effect only fires when content changes
   const dataKey = JSON.stringify(data);
 
   useEffect(() => {
@@ -83,14 +89,14 @@ export function useFormPreview(
       return;
     }
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => runPreview(templateId, JSON.parse(dataKey)), 800);
+    timerRef.current = setTimeout(() => {
+      void runPreview(templateId, JSON.parse(dataKey) as Record<string, unknown>);
+    }, 800);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templateId, dataKey]);
+  }, [templateId, dataKey, runPreview]);
 
-  // Revoke blob URL and abort on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -104,9 +110,10 @@ export function useFormPreview(
   }, []);
 
   const refresh = useCallback(() => {
-    if (templateId) runPreview(templateId, data);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templateId, dataKey]);
+    if (templateId) {
+      void runPreview(templateId, JSON.parse(dataKey) as Record<string, unknown>);
+    }
+  }, [templateId, dataKey, runPreview]);
 
   return {
     pdfUrl,

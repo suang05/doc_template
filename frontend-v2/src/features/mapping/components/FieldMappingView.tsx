@@ -14,7 +14,9 @@ import {
 import { useTemplates } from '@/features/templates';
 import { useFieldMapping } from '../hooks/useFieldMapping';
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst';
-import { Button, Select } from '@/components/ui';
+import { Button, ConflictBanner, Select, Toast } from '@/components/ui';
+import { extractErrorMessage } from '@/lib/api/client';
+import { isConcurrencyConflictError } from '@/hooks/useConflictRecovery';
 import { SortableMappingRow } from './SortableMappingRow';
 import { MappingPreviewPanel, MAPPING_PREVIEW_DEFAULT_SAMPLE } from './MappingPreviewPanel';
 import { cn } from '@/utils/cn';
@@ -32,6 +34,7 @@ export const FieldMappingView: React.FC<FieldMappingViewProps> = ({ initialTempl
   );
   const [showPreview, setShowPreview] = useState(true);
   const [previewJson, setPreviewJson] = useState(MAPPING_PREVIEW_DEFAULT_SAMPLE);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const mapping = useFieldMapping(selectedTemplateId);
 
@@ -47,10 +50,13 @@ export const FieldMappingView: React.FC<FieldMappingViewProps> = ({ initialTempl
   const templateOptions = templates.map(t => ({ value: t.id, label: `${t.name} (${t.slug})` }));
 
   const handleSave = async () => {
+    setSaveError(null);
     try {
       await mapping.handleSave(selectedTemplateId);
     } catch (err: unknown) {
-      alert((err as Error).message || 'บันทึก Mapping ล้มเหลว');
+      if (!isConcurrencyConflictError(err)) {
+        setSaveError(extractErrorMessage(err, 'บันทึก Mapping ล้มเหลว'));
+      }
     }
   };
 
@@ -79,7 +85,25 @@ export const FieldMappingView: React.FC<FieldMappingViewProps> = ({ initialTempl
             </div>
           </div>
 
-          {mapping.unmapped > 0 && (
+          <ConflictBanner
+        conflict={mapping.conflict}
+        onReload={async () => {
+          mapping.clearConflict();
+          await mapping.loadMappings(selectedTemplateId);
+        }}
+        onDismiss={mapping.clearConflict}
+        className="mb-3"
+      />
+
+      {saveError && (
+        <Toast
+          type="error"
+          message={saveError}
+          onClose={() => setSaveError(null)}
+        />
+      )}
+
+      {mapping.unmapped > 0 && (
             <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-2.5 py-0.5">
               <AlertTriangle className="w-3 h-3" />
               {mapping.unmapped} ยังไม่มี Source
@@ -156,6 +180,24 @@ export const FieldMappingView: React.FC<FieldMappingViewProps> = ({ initialTempl
             Optional for HTML
           </span>
         </div>
+      )}
+
+      <ConflictBanner
+        conflict={mapping.conflict}
+        onReload={async () => {
+          mapping.clearConflict();
+          await mapping.loadMappings(selectedTemplateId);
+        }}
+        onDismiss={mapping.clearConflict}
+        className="mb-3"
+      />
+
+      {saveError && (
+        <Toast
+          type="error"
+          message={saveError}
+          onClose={() => setSaveError(null)}
+        />
       )}
 
       {mapping.unmapped > 0 && (

@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { Search, ArrowRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { canAccess } from '@/lib/rbac';
 import { NavigationItemId, navLabels, navSections } from './Sidebar';
 
 // Build searchItems once from navSections
@@ -35,12 +37,14 @@ export interface CommandPaletteProps {
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onNavigate }) => {
+  const { role, systemRole } = useAuthContext();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredItems = searchItems.filter(
     (item) =>
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase())
+      canAccess(role, item.id, systemRole) &&
+      (item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleClose = () => {

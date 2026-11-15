@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { TemplateDto, DocumentCategory } from '@/types/api';
+import type { TemplateDto } from '@/lib/api/types';
+import type { DocumentCategory } from '@/tokens';
 import { templatesApi } from '../api/templates.api';
 import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
 

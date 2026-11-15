@@ -12,6 +12,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.InviteUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.RemoveUser;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.GetProjectUserById;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
@@ -28,6 +29,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class ProjectUsersController(
     IUseCase<ListProjectUsersQuery, List<UserResultDto>> listProjectUsersUseCase,
+    IUseCase<GetProjectUserByIdQuery, UserResultDto> getProjectUserByIdUseCase,
     IUseCase<InviteUserCommand, UserResultDto> inviteUserUseCase,
     IUseCase<UpdateUserRoleCommand, UserResultDto> updateUserRoleUseCase,
     IUseCase<RemoveUserCommand> removeUserUseCase) : ControllerBase
@@ -40,6 +42,17 @@ public sealed class ProjectUsersController(
         var query = new ListProjectUsersQuery();
         var result = await listProjectUsersUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<UserResultDto>>(result));
+    }
+
+    /// <summary>Get a single user's membership in the active project along with its current ETag.</summary>
+    [HttpGet("{userId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<UserResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById([FromRoute] Guid userId, CancellationToken ct)
+    {
+        var query = new GetProjectUserByIdQuery(userId);
+        var result = await getProjectUserByIdUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<UserResultDto>(result));
     }
 
     /// <summary>Invite a new user to the active project.</summary>

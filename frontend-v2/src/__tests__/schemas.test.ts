@@ -30,6 +30,18 @@ import {
 } from '@/features/mapping/schemas/mapping.schema';
 import { CreateApiKeyRequestSchema } from '@/features/apikeys/schemas/apikey.schema';
 import { PagedLogsResponseSchema, PaginationMetadataSchema, LogPayloadResultDtoSchema } from '@/features/logs/schemas/log.schema';
+import { CreateDocumentJobFormSchema } from '@/features/jobs/schemas/job.schema';
+import {
+  createProjectSchema,
+  grantBreakGlassSchema,
+  parseAndValidateEgressCidrs,
+  upsertProjectQuotaSchema,
+} from '@/features/projects/schemas/project.schema';
+import {
+  jsonPointerToFieldKey,
+  mapPointerErrors,
+  parseRetryAfterSeconds,
+} from '@/lib/api/problemDetails';
 
 // ── ThaiTransformTypes Compatibility ───────────────────────────────────────
 
@@ -73,18 +85,8 @@ describe('TemplateDtoSchema', () => {
     expect(() => TemplateDtoSchema.parse({ ...valid, ...override })).not.toThrow();
   });
 
-  it.each([
-    ['invalid UUID id', { id: 'not-a-uuid' }],
-    ['empty name', { name: '' }],
-    ['slug with uppercase', { slug: 'MyTemplate' }],
-    ['slug with spaces', { slug: 'my template' }],
-    ['slug with underscores', { slug: 'my-template_v2' }],
-    ['slug too short', { slug: 'a' }],
-    ['slug with consecutive hyphens', { slug: 'my--template' }],
-    ['slug with leading hyphen', { slug: '-my-template' }],
-    ['slug with trailing hyphen', { slug: 'my-template-' }],
-  ])('rejects invalid variation (%s)', (_, override) => {
-    expect(() => TemplateDtoSchema.parse({ ...valid, ...override })).toThrow();
+  it('rejects invalid UUID id', () => {
+    expect(() => TemplateDtoSchema.parse({ ...valid, id: 'not-a-uuid' })).toThrow();
   });
 });
 
@@ -95,18 +97,23 @@ describe('CreateTemplateRequestSchema', () => {
 
   it.each([
     ['minimal valid', {}],
-    ['with optional htmlContent', { htmlContent: '<!DOCTYPE html><html></html>' }],
-    ['with null category', { category: null }],
+    ['with optional html', { html: '<!DOCTYPE html><html></html>' }],
+    ['with explicit category', { category: 'invoice' }],
   ])('accepts valid variation (%s)', (_, override) => {
     expect(() => CreateTemplateRequestSchema.parse({ ...valid, ...override })).not.toThrow();
+  });
+
+  it('defaults category to contract when omitted', () => {
+    expect(CreateTemplateRequestSchema.parse(valid).category).toBe('contract');
   });
 
   it.each([
     ['empty name', { name: '' }],
     ['empty slug', { slug: '' }],
+    ['slug with uppercase', { slug: 'TestTemplate' }],
     ['slug with spaces and special chars', { slug: 'Test Template!' }],
     ['slug with underscores', { slug: 'test_template' }],
-    ['slug shorter than 2 chars', { slug: 'a' }],
+    ['slug shorter than 3 chars', { slug: 'ab' }],
   ])('rejects invalid variation (%s)', (_, override) => {
     expect(() => CreateTemplateRequestSchema.parse({ ...valid, ...override })).toThrow();
   });
@@ -141,6 +148,7 @@ describe('TemplateVersionDtoSchema', () => {
     id: '123e4567-e89b-12d3-a456-426614174000',
     templateId: '123e4567-e89b-12d3-a456-426614174001',
     version: 1,
+    status: 'Published',
     storageKey: 'templates/archive/contract_v1.html',
     createdAt: '2026-09-01T00:00:00Z',
   };
@@ -149,8 +157,16 @@ describe('TemplateVersionDtoSchema', () => {
     expect(() => TemplateVersionDtoSchema.parse(valid)).not.toThrow();
   });
 
-  it('rejects non-integer version', () => {
-    expect(() => TemplateVersionDtoSchema.parse({ ...valid, version: 1.5 })).toThrow();
+  it('rejects missing status', () => {
+    expect(() =>
+      TemplateVersionDtoSchema.parse({
+        id: valid.id,
+        templateId: valid.templateId,
+        version: valid.version,
+        storageKey: valid.storageKey,
+        createdAt: valid.createdAt,
+      }),
+    ).toThrow();
   });
 });
 
@@ -167,9 +183,14 @@ describe('TemplateValidationResultSchema', () => {
     expect(result.fields).toHaveLength(2);
   });
 
-  it('defaults errors and fields to empty arrays', () => {
-    const result = TemplateValidationResultSchema.parse({ valid: false });
-    expect(result.errors).toEqual([]);
+  it('requires fields and errors arrays on validation response', () => {
+    const result = TemplateValidationResultSchema.parse({
+      valid: false,
+      fields: [],
+      errors: ['Unclosed handlebars block'],
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(['Unclosed handlebars block']);
     expect(result.fields).toEqual([]);
   });
 });
@@ -286,7 +307,8 @@ describe('Log Schemas Validation Integrity', () => {
       data: [
         {
           id: '01926b42-7c3a-7000-8000-123456789abc',
-          status: 'success',
+          status: 'SUCCESS',
+          durationMs: 120,
           createdAt: '2026-10-10T00:00:00Z',
         },
       ],
@@ -458,12 +480,13 @@ describe('DocumentJobDtoSchema', () => {
   const valid = {
     jobId: '123e4567-e89b-12d3-a456-426614174000',
     templateSlug: 'invoice-template',
-    status: 'Completed',
-    enqueuedAt: '2026-11-04T12:00:00Z',
+    status: 'Succeeded',
+    outputFormat: 'pdf',
+    createdAt: '2026-11-04T12:00:00Z',
     startedAt: '2026-11-04T12:00:01Z',
     completedAt: '2026-11-04T12:00:03Z',
-    statusUrl: '/api/v1/documents/jobs/123e4567-e89b-12d3-a456-426614174000',
-    downloadUrl: '/api/v1/generation-logs/123e4567-e89b-12d3-a456-426614174000/artifact',
+    statusUrl: '/api/v1/document-jobs/123e4567-e89b-12d3-a456-426614174000',
+    downloadUrl: '/api/v1/document-jobs/123e4567-e89b-12d3-a456-426614174000/result',
     errorMessage: null,
     errorCode: null,
   };
@@ -471,7 +494,8 @@ describe('DocumentJobDtoSchema', () => {
   it('parses a valid document job response', () => {
     const parsed = DocumentJobDtoSchema.parse(valid);
     expect(parsed.jobId).toBe(valid.jobId);
-    expect(parsed.status).toBe('Completed');
+    expect(parsed.status).toBe('Succeeded');
+    expect(parsed.outputFormat).toBe('pdf');
   });
 
   it('parses queued document job without start/complete times', () => {
@@ -485,5 +509,61 @@ describe('DocumentJobDtoSchema', () => {
     const parsed = DocumentJobDtoSchema.parse(queued);
     expect(parsed.status).toBe('Queued');
     expect(parsed.downloadUrl).toBeNull();
+  });
+});
+
+describe('Phase 5 Control Plane, Jobs, and RFC 9457 Helpers', () => {
+  it('validates CreateDocumentJobFormSchema', () => {
+    const parsed = CreateDocumentJobFormSchema.parse({
+      slug: 'invoice-v2',
+      outputFormat: 'pdf',
+      maxAttempts: 3,
+      webhookUrl: '',
+    });
+    expect(parsed.slug).toBe('invoice-v2');
+    expect(() =>
+      CreateDocumentJobFormSchema.parse({ slug: '', webhookUrl: 'not-a-url' }),
+    ).toThrow();
+  });
+
+  it('validates Control Plane project, CIDR, quota, and break-glass schemas', () => {
+    expect(
+      createProjectSchema.parse({ name: 'Claims Portal', slug: 'claims-portal' }).slug,
+    ).toBe('claims-portal');
+    expect(() =>
+      createProjectSchema.parse({ name: 'X', slug: 'Invalid Slug' }),
+    ).toThrow();
+
+    expect(parseAndValidateEgressCidrs('10.0.0.0/8\n192.168.1.0/24')).toEqual({
+      cidrs: ['10.0.0.0/8', '192.168.1.0/24'],
+    });
+    expect(parseAndValidateEgressCidrs('not-a-cidr').error).toBeDefined();
+
+    const quota = upsertProjectQuotaSchema.parse({
+      maxRequestsPerMinute: '120',
+      maxConcurrentJobs: '5',
+      maxBatchItems: '100',
+      maxStorageBytes: '1048576',
+      maxActiveApiKeys: '2',
+      isActive: true,
+    });
+    expect(quota.maxRequestsPerMinute).toBe(120);
+
+    const grant = grantBreakGlassSchema.parse({
+      targetProjectId: '123e4567-e89b-12d3-a456-426614174000',
+      reason: 'Emergency incident diagnostics',
+      durationMinutes: '60',
+    });
+    expect(grant.durationMinutes).toBe(60);
+  });
+
+  it('maps RFC 6901 JSON Pointers and parses Retry-After headers', () => {
+    expect(jsonPointerToFieldKey('/customer/tax~1id')).toBe('customer.tax/id');
+    expect(
+      mapPointerErrors([
+        { pointer: '/payload/amount', code: 'MIN', message: 'Must be >= 1' },
+      ]),
+    ).toEqual({ 'payload.amount': 'Must be >= 1' });
+    expect(parseRetryAfterSeconds('15')).toBe(15);
   });
 });

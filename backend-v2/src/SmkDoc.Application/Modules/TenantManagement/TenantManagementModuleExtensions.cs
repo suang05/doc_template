@@ -4,6 +4,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Commands.GrantBreakGlassAccess;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Commands.RevokeBreakGlassAccess;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.DTOs;
+using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Queries.GetBreakGlassGrantById;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Queries.ListBreakGlassGrants;
 using SmkDoc.Application.Modules.TenantManagement.Fonts.Commands.RegisterPlatformFont;
 using SmkDoc.Application.Modules.TenantManagement.Fonts.DTOs;
@@ -41,6 +42,7 @@ public static class TenantManagementModuleExtensions
         services.AddUseCase<GrantBreakGlassAccessCommand, BreakGlassGrantResultDto, GrantBreakGlassAccessUseCase>();
         services.AddUseCase<RevokeBreakGlassAccessCommand, RevokeBreakGlassAccessUseCase>();
         services.AddUseCase<ListBreakGlassGrantsQuery, IReadOnlyList<BreakGlassGrantResultDto>, ListBreakGlassGrantsUseCase>();
+        services.AddUseCase<GetBreakGlassGrantByIdQuery, BreakGlassGrantResultDto, GetBreakGlassGrantByIdUseCase>();
 
         return services;
     }

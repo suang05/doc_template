@@ -3,19 +3,37 @@
  * Provides IntelliSense, snippets, transforms, and field suggestions for HTML templates.
  */
 
+import type { OnMount } from '@monaco-editor/react';
+
+export type MonacoEditorInstance = Parameters<OnMount>[0];
+export type MonacoNamespace = Parameters<OnMount>[1];
+export type MonacoDisposable = ReturnType<
+  MonacoNamespace['languages']['registerCompletionItemProvider']
+>;
+type CompletionProvider = Parameters<
+  MonacoNamespace['languages']['registerCompletionItemProvider']
+>[1];
+type MonacoTextModel = Parameters<CompletionProvider['provideCompletionItems']>[0];
+type MonacoPosition = Parameters<CompletionProvider['provideCompletionItems']>[1];
+type MonacoCompletionResult = Extract<
+  Awaited<ReturnType<CompletionProvider['provideCompletionItems']>>,
+  { suggestions: unknown[] }
+>;
+type MonacoCompletionItem = MonacoCompletionResult['suggestions'][number];
+
 export interface MonacoCompletionOptions {
   getAvailableFields?: () => string[];
 }
 
 export function registerTemplateCompletion(
-  monaco: any,
-  options?: MonacoCompletionOptions
-) {
+  monaco: MonacoNamespace | null | undefined,
+  options?: MonacoCompletionOptions,
+): MonacoDisposable {
   if (!monaco?.languages) return { dispose: () => {} };
 
   const disposable = monaco.languages.registerCompletionItemProvider('html', {
     triggerCharacters: ['{', ':', '#', '@', '<', ' '],
-    provideCompletionItems: (model: any, position: any) => {
+    provideCompletionItems: (model: MonacoTextModel, position: MonacoPosition) => {
       const textUntilPosition = model.getValueInRange({
         startLineNumber: position.lineNumber,
         startColumn: 1,
@@ -31,7 +49,7 @@ export function registerTemplateCompletion(
         endColumn: word.endColumn,
       };
 
-      const suggestions: any[] = [];
+      const suggestions: MonacoCompletionItem[] = [];
       const itemKind = monaco.languages.CompletionItemKind;
       const insertRule = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
 

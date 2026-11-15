@@ -1,6 +1,8 @@
 import React from 'react';
 import { CardBlock, Select, Input } from '@/components/ui';
-import { OutputFormat, TemplateDto, tokens, DocumentFormat } from '@/types/api';
+import type { OutputFormat } from '@/constants/domain';
+import type { TemplateDto } from '@/lib/api/types';
+import { tokens, type DocumentFormat } from '@/tokens';
 
 export interface GeneratorSettingsCardProps {
   selectedTemplate?: TemplateDto;
@@ -65,12 +67,14 @@ export const GeneratorSettingsCard: React.FC<GeneratorSettingsCardProps> = ({
       <div className="grid grid-cols-2 gap-2">
         <Input
           label="Document Ref"
+          name="documentRef"
           value={documentRef}
           onChange={(e) => onDocumentRefChange(e.target.value)}
           placeholder="เช่น SMK-CONDO-2026-001"
         />
         <Input
           label="Change Note"
+          name="changeNote"
           value={changeNote}
           onChange={(e) => onChangeNoteChange(e.target.value)}
           placeholder="เช่น สัญญาฉบับสมบูรณ์"
@@ -79,4 +83,3 @@ export const GeneratorSettingsCard: React.FC<GeneratorSettingsCardProps> = ({
     </CardBlock>
   );
 };
-

@@ -95,8 +95,8 @@ jobs:
         run: npm --prefix frontend-v2 ci
       - name: TypeScript type check
         run: npm --prefix frontend-v2 run typecheck
-      - name: ESLint strict check (non-regression cap)
-        run: npm --prefix frontend-v2 run lint -- --max-warnings=28
+      - name: ESLint strict check (zero warnings)
+        run: npm --prefix frontend-v2 run lint -- --max-warnings=0
       - name: Run Vitest unit suite
         run: npm --prefix frontend-v2 test
 

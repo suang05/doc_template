@@ -12,6 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { Modal, Button, Input, Select, Badge } from '@/components/ui';
+import { extractErrorMessage } from '@/lib/api/client';
 import { templatesApi } from '../api/templates.api';
 
 export interface CreateTemplateChoiceModalProps {
@@ -128,8 +129,8 @@ export const CreateTemplateChoiceModal: React.FC<CreateTemplateChoiceModalProps>
       handleClose();
       if (onCreated) onCreated();
       onOpenStudio(res.id);
-    } catch (err: any) {
-      setError(err.message || 'สร้างแม่แบบล้มเหลว');
+    } catch (err: unknown) {
+      setError(extractErrorMessage(err, 'สร้างแม่แบบล้มเหลว'));
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,8 @@
 import React from 'react';
 import { Tag, AlertCircle } from 'lucide-react';
 import { CardBlock, Input } from '@/components/ui';
-import { ThaiTransformTypes, FieldMappingDto } from '@/types/api';
+import { ThaiTransformTypes } from '@/constants/domain';
+import type { FieldMappingDto } from '@/lib/api/types';
 
 export interface GeneratorPayloadFormProps {
   mappingsLoading: boolean;
@@ -37,6 +38,7 @@ export const GeneratorPayloadForm: React.FC<GeneratorPayloadFormProps> = ({
         <h3 className="text-xs font-bold text-textPrimary">ข้อมูลเอกสาร (Data)</h3>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={onFillSampleData}
             className="text-[10px] text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 px-2 py-1 rounded-[2px] transition-colors border border-sky-200 cursor-pointer"
           >
@@ -46,8 +48,8 @@ export const GeneratorPayloadForm: React.FC<GeneratorPayloadFormProps> = ({
             {mappingsLoading
               ? 'กำลังโหลด...'
               : hasMappings
-              ? `${mappings.length} fields`
-              : 'JSON mode'}
+                ? `${mappings.length} fields`
+                : 'JSON mode'}
           </span>
         </div>
       </div>
@@ -78,6 +80,7 @@ export const GeneratorPayloadForm: React.FC<GeneratorPayloadFormProps> = ({
                 )}
               </div>
               <Input
+                name={m.sourcePath}
                 value={formValues[m.sourcePath] ?? ''}
                 onChange={(e) => onFieldChange(m.sourcePath, e.target.value)}
                 placeholder={m.defaultValue || `ระบุ ${m.label}`}
@@ -89,10 +92,13 @@ export const GeneratorPayloadForm: React.FC<GeneratorPayloadFormProps> = ({
       ) : (
         <div className="flex flex-col flex-1 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-textMuted">ยังไม่มี Field Mapping — กรอก JSON โดยตรง</span>
+            <span className="text-[10px] text-textMuted">
+              ยังไม่มี Field Mapping — กรอก JSON โดยตรง
+            </span>
             <span className="text-[10px] font-mono text-textMuted">application/json</span>
           </div>
           <textarea
+            name="fallbackJson"
             value={fallbackJson}
             onChange={(e) => onFallbackJsonChange(e.target.value)}
             className={`w-full flex-1 min-h-[220px] p-3 rounded-sm font-mono text-xs bg-zinc-900 text-zinc-300 border outline-none focus:border-primary resize-none ${
@@ -110,4 +116,3 @@ export const GeneratorPayloadForm: React.FC<GeneratorPayloadFormProps> = ({
     </CardBlock>
   );
 };
-

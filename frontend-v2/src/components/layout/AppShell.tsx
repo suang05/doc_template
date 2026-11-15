@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, X } from 'lucide-react';
 import { Topbar } from './Topbar';
 import { Sidebar, NavigationItemId, navLabels } from './Sidebar';
 import { CommandPalette } from './CommandPalette';
-import { useStoredApiKey } from '@/features/apikeys';
-import { useAuthContext } from '@/contexts/AuthContext';
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -21,10 +18,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
-  const { hasApiKey } = useStoredApiKey();
-  const { isAuthenticated } = useAuthContext();
-  const missingKey = !isAuthenticated && !hasApiKey && !bannerDismissed;
 
   const isFixedViewport =
     pathname.startsWith('/studio') ||
@@ -33,14 +26,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-canvas font-sans antialiased text-textPrimary">
-      {/* Sidebar */}
       <Sidebar
         isOpen={isSidebarOpen}
         activeItem={activeTab}
         onSelectItem={navigate}
       />
 
-      {/* Main Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <Topbar
           isSidebarOpen={isSidebarOpen}
@@ -50,31 +41,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           activeViewTitle={titles[activeTab]}
         />
 
-        {/* Missing API Key banner */}
-        {missingKey && (
-          <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-900">
-            <div className="flex items-center gap-2 text-xs">
-              <KeyRound className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span>ยังไม่ได้ตั้งค่า API Key — ระบบจะไม่สามารถเรียก API ได้จนกว่าจะกำหนดคีย์</span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => navigate('settings')}
-                className="text-[11px] font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900 cursor-pointer"
-              >
-                ไปตั้งค่าเลย
-              </button>
-              <button
-                onClick={() => setBannerDismissed(true)}
-                className="p-0.5 rounded-sm hover:bg-amber-100 text-amber-600 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* View Canvas: Fixed viewport for Studio/Generator/Mapping, Contained scroll for others */}
         {isFixedViewport ? (
           <main className="flex-1 overflow-hidden p-2 md:p-3 bg-canvas flex flex-col min-h-0">
             {children}
@@ -86,7 +52,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         )}
       </div>
 
-      {/* Command Palette Modal (Ctrl+K) */}
       <CommandPalette
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}

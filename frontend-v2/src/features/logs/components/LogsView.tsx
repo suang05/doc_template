@@ -1,16 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  ListOrdered,
-  Search,
-  AlertCircle,
-  Eye,
-  Clock,
-  Download,
-} from 'lucide-react';
-import { useGenerationLogs } from '../hooks/useGenerationLogs';
-import { documentsApi } from '@/features/generator';
+import { ListOrdered, Search, AlertCircle, Eye, Clock, Download } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -23,8 +14,15 @@ import {
   CodeBlock,
   EmptyState,
   PageHeader,
+  Toast,
 } from '@/components/ui';
-import { GenerationLogDto, DocumentFormat } from '@/types/api';
+import { documentsApi } from '@/features/generator';
+import { extractErrorMessage } from '@/lib/api/client';
+import type { GenerationLogDto, LogPayloadResultDto } from '@/lib/api/types';
+import { isSuccessGenerationStatus } from '@/constants/domain';
+import type { DocumentFormat } from '@/tokens';
+import { logsApi } from '../api/logs.api';
+import { useGenerationLogs } from '../hooks/useGenerationLogs';
 
 export const LogsView: React.FC = () => {
   const {
@@ -39,17 +37,39 @@ export const LogsView: React.FC = () => {
     refresh,
   } = useGenerationLogs();
 
-  const [inspectPayload, setInspectPayload] = useState<string | null>(null);
+  const [inspectPayload, setInspectPayload] = useState<LogPayloadResultDto | null>(null);
+  const [loadingPayloadId, setLoadingPayloadId] = useState<string | null>(null);
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [downloadingLogId, setDownloadingLogId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
+    null,
+  );
+
+  const handleInspectPayload = async (logId: string) => {
+    setLoadingPayloadId(logId);
+    try {
+      const payload = await logsApi.getPayload(logId);
+      setInspectPayload(payload);
+    } catch (err) {
+      setToast({
+        type: 'error',
+        message: extractErrorMessage(err, 'ไม่สามารถโหลดข้อมูล Payload ได้'),
+      });
+    } finally {
+      setLoadingPayloadId(null);
+    }
+  };
 
   const handleDownload = async (logId: string) => {
     setDownloadingLogId(logId);
     try {
       const { url } = await documentsApi.getDownloadUrlByLogId(logId);
       window.open(url, '_blank', 'noopener,noreferrer');
-    } catch {
-      // silently fail — no toast available in this component
+    } catch (err) {
+      setToast({
+        type: 'error',
+        message: extractErrorMessage(err, 'ไม่สามารถดึงลิงก์ดาวน์โหลดได้'),
+      });
     } finally {
       setDownloadingLogId(null);
     }
@@ -58,15 +78,14 @@ export const LogsView: React.FC = () => {
   const columns: Column<GenerationLogDto>[] = [
     {
       header: 'สถานะ',
-      accessor: (item) => (
-        <Badge
-          status={item.status === 'success' ? 'success' : 'failed'}
-          dot
-          size="sm"
-        >
-          {item.status === 'success' ? 'สำเร็จ' : 'ล้มเหลว'}
-        </Badge>
-      ),
+      accessor: (item) => {
+        const ok = isSuccessGenerationStatus(item.status);
+        return (
+          <Badge status={ok ? 'success' : 'failed'} dot size="sm">
+            {ok ? 'สำเร็จ' : item.status || 'ล้มเหลว'}
+          </Badge>
+        );
+      },
       align: 'center',
     },
     {
@@ -81,10 +100,7 @@ export const LogsView: React.FC = () => {
     {
       header: 'รูปแบบ',
       accessor: (item) => (
-        <Badge
-          format={(item.outputFormat?.toLowerCase() || 'pdf') as DocumentFormat}
-          size="sm"
-        >
+        <Badge format={(item.outputFormat?.toLowerCase() || 'pdf') as DocumentFormat} size="sm">
           {(item.outputFormat || 'pdf').toUpperCase()}
         </Badge>
       ),
@@ -93,7 +109,7 @@ export const LogsView: React.FC = () => {
     {
       header: 'ระยะเวลาประมวลผล',
       accessor: (item) => (
-        <span className="text-[11px] font-mono text-textMuted flex items-center gap-1">
+        <span className="text-[11px] font-mono text-textMuted flex items-center gap-1 justify-center">
           <Clock className="w-3 h-3" />
           <span>{item.durationMs || 0} ms</span>
         </span>
@@ -112,24 +128,23 @@ export const LogsView: React.FC = () => {
       header: 'รายละเอียด',
       accessor: (item) => (
         <div className="flex items-center justify-end gap-1">
-          {item.inputData && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={Eye}
-              onClick={() => setInspectPayload(item.inputData || '')}
-            >
-              Data
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Eye}
+            loading={loadingPayloadId === item.id}
+            onClick={() => void handleInspectPayload(item.id)}
+          >
+            Payload
+          </Button>
 
-          {item.status === 'success' && item.outputKey && (
+          {isSuccessGenerationStatus(item.status) && (
             <Button
               variant="outline"
               size="sm"
               icon={Download}
               loading={downloadingLogId === item.id}
-              onClick={() => handleDownload(item.id)}
+              onClick={() => void handleDownload(item.id)}
             >
               ดาวน์โหลด
             </Button>
@@ -154,7 +169,8 @@ export const LogsView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header Info */}
+      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
       <PageHeader
         title="ประวัติการเรียกสร้างเอกสารทั้งหมด (System Generation Logs)"
         description="บันทึกการส่งคำขอแบบเรียลไทม์จากระบบภายนอก พร้อมระยะเวลา Duration และ Error Diagnosis"
@@ -162,7 +178,6 @@ export const LogsView: React.FC = () => {
         iconColor="slate"
       />
 
-      {/* Toolbar Filter */}
       <Toolbar
         leftSlot={
           <div className="w-64">
@@ -178,13 +193,12 @@ export const LogsView: React.FC = () => {
           </div>
         }
         rightSlot={
-          <Button variant="outline" size="sm" onClick={refresh}>
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
             รีเฟรช
           </Button>
         }
       />
 
-      {/* Logs Table */}
       {logs.length === 0 && !loading ? (
         <EmptyState
           icon={ListOrdered}
@@ -193,12 +207,7 @@ export const LogsView: React.FC = () => {
         />
       ) : (
         <div className="space-y-2">
-          <Table
-            columns={columns}
-            data={logs}
-            keyExtractor={(l) => l.id}
-            loading={loading}
-          />
+          <Table columns={columns} data={logs} keyExtractor={(l) => l.id} loading={loading} />
 
           <Pagination
             currentPage={page}
@@ -209,7 +218,6 @@ export const LogsView: React.FC = () => {
         </div>
       )}
 
-      {/* Inspect Input Payload Modal */}
       <Modal
         isOpen={!!inspectPayload}
         onClose={() => setInspectPayload(null)}
@@ -217,22 +225,30 @@ export const LogsView: React.FC = () => {
         maxWidth="lg"
       >
         <div className="space-y-2">
-          {inspectPayload && (
+          {inspectPayload?.isOffloaded && (
+            <p className="text-[11px] font-mono text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-sm">
+              Offloaded payload resolved from object storage
+            </p>
+          )}
+          {inspectPayload?.payloadJson ? (
             <CodeBlock
               code={(() => {
                 try {
-                  return JSON.stringify(JSON.parse(inspectPayload), null, 2);
+                  return JSON.stringify(JSON.parse(inspectPayload.payloadJson), null, 2);
                 } catch {
-                  return inspectPayload;
+                  return inspectPayload.payloadJson;
                 }
               })()}
               language="json"
             />
+          ) : (
+            <p className="text-xs text-textMuted py-4 text-center">
+              ไม่พบข้อมูล Payload สำหรับรายการนี้
+            </p>
           )}
         </div>
       </Modal>
 
-      {/* Error Details Modal */}
       <Modal
         isOpen={!!selectedError}
         onClose={() => setSelectedError(null)}

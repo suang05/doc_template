@@ -39,7 +39,7 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
     const startTime = performance.now();
 
     try {
-      let parsedData: Record<string, any> = {};
+      let parsedData: Record<string, unknown> = {};
       if (sampleDataJson) {
         try {
           parsedData = JSON.parse(sampleDataJson);
@@ -71,21 +71,32 @@ export function useLivePreview(slug?: string, html?: string, sampleDataJson?: st
       const newUrl = URL.createObjectURL(blob);
       previousUrlRef.current = newUrl;
       setPdfUrl(newUrl);
-    } catch (err: any) {
-      if (err.name === 'AbortError' || controller.signal.aborted) {
+    } catch (err: unknown) {
+      if (
+        (err instanceof Error && err.name === 'AbortError') ||
+        controller.signal.aborted
+      ) {
         // Intentionally aborted by newer keystroke, do not show error
         return;
       }
 
       if (err instanceof ApiError) {
+        const mappedErrors =
+          Object.keys(err.fieldErrors).length > 0
+            ? Object.fromEntries(
+                Object.entries(err.fieldErrors).map(([k, msg]) => [k, [msg]]),
+              )
+            : undefined;
         setError(err.message || 'เกิดข้อผิดพลาดในการสร้าง PDF พรีวิว');
         setErrorDetails({
           code: err.errorCode,
           detail: err.detail,
-          errors: err.errors,
+          errors: mappedErrors,
         });
       } else {
-        setError(err.message || 'เกิดข้อผิดพลาดในการสร้าง PDF พรีวิว');
+        setError(
+          err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการสร้าง PDF พรีวิว',
+        );
         setErrorDetails(null);
       }
     } finally {

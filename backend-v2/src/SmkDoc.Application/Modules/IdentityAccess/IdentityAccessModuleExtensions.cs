@@ -11,6 +11,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RefreshToken;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.EventHandlers;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetApiKeyById;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetCurrentUserProfile;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ValidateApiKey;
@@ -21,6 +22,8 @@ using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRole;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.EventHandlers;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.GetProjectUserById;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.GetUserById;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.ListProjectUsers;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Services;
 using SmkDoc.Domain.Events;
@@ -57,6 +60,8 @@ public static class IdentityAccessModuleExtensions
     private static IServiceCollection AddUserSlices(this IServiceCollection services)
     {
         services.AddUseCase<ListProjectUsersQuery, List<UserResultDto>, ListProjectUsersUseCase>();
+        services.AddUseCase<GetProjectUserByIdQuery, UserResultDto, GetProjectUserByIdUseCase>();
+        services.AddUseCase<GetUserByIdQuery, UserResultDto, GetUserByIdUseCase>();
         services.AddUseCase<InviteUserCommand, UserResultDto, InviteUserUseCase>();
         services.AddUseCase<UpdateUserRoleCommand, UserResultDto, UpdateUserRoleUseCase>();
         services.AddUseCase<RemoveUserCommand, RemoveUserUseCase>();
@@ -81,6 +86,7 @@ public static class IdentityAccessModuleExtensions
         services.AddUseCase<CreateApiKeyCommand, CreateApiKeyResultDto, CreateApiKeyUseCase>();
         services.AddUseCase<RevokeApiKeyCommand, RevokeApiKeyUseCase>();
         services.AddUseCase<ListApiKeysQuery, List<ApiKeyResultDto>, ListApiKeysUseCase>();
+        services.AddUseCase<GetApiKeyByIdQuery, ApiKeyResultDto, GetApiKeyByIdUseCase>();
         services.AddUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?, ValidateApiKeyUseCase>();
     }
 }

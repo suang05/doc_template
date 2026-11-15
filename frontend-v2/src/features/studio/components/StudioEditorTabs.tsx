@@ -2,6 +2,7 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
+import type { OnMount } from '@monaco-editor/react';
 
 const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
@@ -19,7 +20,7 @@ export interface StudioEditorTabsProps {
   onUpdateFooterHtml: (val: string) => void;
   onUpdateSampleDataJson: (val: string) => void;
   onInsertSnippet: (snippetText: string) => void;
-  onEditorMount: (editor: any, monaco: any) => void;
+  onEditorMount: OnMount;
 }
 
 export const StudioEditorTabs: React.FC<StudioEditorTabsProps> = ({

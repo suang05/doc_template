@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { hasRole, canAccess } from '@/lib/rbac';
+import {
+  hasRole,
+  canAccess,
+  isSuperAdmin,
+  SUPER_ADMIN_ONLY_ITEMS,
+} from '@/lib/rbac';
 import type { NavigationItemId } from '@/components/layout/Sidebar';
-import type { UserRole } from '@/types/api';
+import type { UserRole } from '@/constants/domain';
 
 describe('hasRole', () => {
   it.each([
@@ -45,5 +50,24 @@ describe('canAccess', () => {
     ['Admin', 'settings', true],
   ] as const)('evaluates userRole "%s" accessing route "%s" -> %s', (userRole, route, expected) => {
     expect(canAccess(userRole, route as NavigationItemId)).toBe(expected);
+  });
+});
+
+describe('SuperAdmin RBAC Controls', () => {
+  it('identifies SuperAdmin systemRole strictly', () => {
+    expect(isSuperAdmin('SuperAdmin')).toBe(true);
+    expect(isSuperAdmin('superadmin')).toBe(false);
+    expect(isSuperAdmin('PortalUser')).toBe(false);
+    expect(isSuperAdmin(null)).toBe(false);
+    expect(isSuperAdmin(undefined)).toBe(false);
+  });
+
+  it('restricts SUPER_ADMIN_ONLY_ITEMS (projects) from non-SuperAdmin users', () => {
+    expect(SUPER_ADMIN_ONLY_ITEMS.has('projects')).toBe(true);
+    expect(canAccess('Admin', 'projects')).toBe(false);
+    expect(canAccess('Admin', 'projects', 'PortalUser')).toBe(false);
+    expect(canAccess('Admin', 'projects', 'SuperAdmin')).toBe(true);
+    expect(canAccess('Viewer', 'projects', 'SuperAdmin')).toBe(true);
+    expect(canAccess(null, 'projects', 'SuperAdmin')).toBe(true);
   });
 });

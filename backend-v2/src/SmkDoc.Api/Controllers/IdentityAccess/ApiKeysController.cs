@@ -9,6 +9,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetApiKeyById;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
@@ -24,6 +25,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class ApiKeysController(
     IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>> listApiKeysUseCase,
+    IUseCase<GetApiKeyByIdQuery, ApiKeyResultDto> getApiKeyByIdUseCase,
     IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
     IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase) : ControllerBase
 {
@@ -35,6 +37,17 @@ public sealed class ApiKeysController(
         var query = new ListApiKeysQuery();
         var result = await listApiKeysUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyResultDto>>(result));
+    }
+
+    /// <summary>Get a single API sub-key by ID for the current project along with its current ETag.</summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<ApiKeyResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById([FromRoute] Guid id, CancellationToken ct)
+    {
+        var query = new GetApiKeyByIdQuery(id);
+        var result = await getApiKeyByIdUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<ApiKeyResultDto>(result));
     }
 
     /// <summary>Generate a new sub-key for the current project under quota guardrails (Max 2 active keys).</summary>

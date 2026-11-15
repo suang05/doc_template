@@ -1,28 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   Settings,
   Server,
   Database,
-  Key,
+  ShieldCheck,
   Palette,
   RefreshCw,
   HardDrive,
   FileText,
 } from 'lucide-react';
-import { getStoredApiKey, setStoredApiKey } from '@/lib/api/client';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { checkHealth as checkHealthApi } from '../api/health.api';
-import { tokens } from '@/tokens';
-import {
-  CardBlock,
-  Input,
-  Button,
-  Badge,
-  PageHeader,
-  Tabs,
-} from '@/components/ui';
-import type { SystemStatus, HealthCheck, HealthStatus, HealthReport } from '@/types/api';
+import type { HealthCheck, HealthReport, HealthStatus } from '../schemas/health.schema';
+import { tokens, type SystemStatus } from '@/tokens';
+import { CardBlock, Button, Badge, PageHeader, Tabs } from '@/components/ui';
 
 function toSystemStatus(s: HealthStatus | null): SystemStatus {
   if (s === 'healthy') return 'success';
@@ -39,24 +33,17 @@ function statusLabel(s: HealthStatus | null): string {
 }
 
 export const SettingsView: React.FC = () => {
+  const { user, role, systemRole, projectId } = useAuthContext();
   const [activeTab, setActiveTab] = useState<'health' | 'env' | 'tokens'>('health');
-  const [apiKey, setApiKey] = useState('');
-  const [apiUrl, setApiUrl] = useState('');
-  const [saved, setSaved] = useState(false);
   const [checkingHealth, setCheckingHealth] = useState(false);
   const [healthReport, setHealthReport] = useState<HealthReport | null>(null);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
 
   const settingsTabs = [
     { id: 'health', label: '1. สถานะบริการ (Health & Diagnostics)' },
-    { id: 'env',    label: '2. สภาพแวดล้อม (Environment & Keys)' },
+    { id: 'env', label: '2. สภาพแวดล้อมและเซสชัน (Environment & Session)' },
     { id: 'tokens', label: '3. โทเคนการออกแบบ (Design Tokens)' },
   ];
-
-  useEffect(() => {
-    setApiKey(getStoredApiKey());
-    setApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080');
-  }, []);
 
   const checkHealth = async () => {
     setCheckingHealth(true);
@@ -72,14 +59,8 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleSaveApiKey = () => {
-    setStoredApiKey(apiKey);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
   const getCheck = (name: string): HealthCheck | undefined =>
-    healthReport?.checks.find(c => c.name === name);
+    healthReport?.checks.find((c) => c.name === name);
 
   const apiStatus: SystemStatus =
     apiReachable === true ? 'success' : apiReachable === false ? 'failed' : 'idle';
@@ -96,7 +77,7 @@ export const SettingsView: React.FC = () => {
       icon: <Server className="w-3.5 h-3.5 text-sky-600" />,
       status: apiStatus,
       statusText: apiStatusLabel,
-      detail: apiUrl,
+      detail: '/api/health (BFF -> Backend)',
       durationMs: healthReport?.totalDurationMs,
     },
     {
@@ -127,10 +108,9 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
-      {/* Header */}
       <PageHeader
         title="การตั้งค่าระบบ (System Settings & Diagnostics)"
-        description="ตรวจสอบสถานะการเชื่อมต่อบริการ, กำหนดสภาพแวดล้อม และตรวจสอบโทเคนการออกแบบ"
+        description="ตรวจสอบสถานะการเชื่อมต่อบริการ, ข้อมูลเซสชันปัจจุบัน และโทเคนการออกแบบ"
         icon={Settings}
         iconColor="slate"
         rightSlot={
@@ -145,7 +125,7 @@ export const SettingsView: React.FC = () => {
               size="sm"
               icon={RefreshCw}
               loading={checkingHealth}
-              onClick={checkHealth}
+              onClick={() => void checkHealth()}
             >
               ตรวจสอบสถานะระบบ
             </Button>
@@ -153,7 +133,6 @@ export const SettingsView: React.FC = () => {
         }
       />
 
-      {/* Tabs Navigation */}
       <div className="bg-surface border border-border rounded-sm overflow-hidden">
         <Tabs
           tabs={settingsTabs}
@@ -162,11 +141,10 @@ export const SettingsView: React.FC = () => {
         />
       </div>
 
-      {/* Tab 1: Services Health Status */}
       {activeTab === 'health' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {serviceCards.map(card => (
+            {serviceCards.map((card) => (
               <CardBlock key={card.label} className="p-3.5 space-y-2">
                 <div className="flex items-center justify-between gap-1">
                   <span className="text-xs font-semibold text-textPrimary flex items-center gap-1.5 min-w-0">
@@ -186,66 +164,83 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <CardBlock className="p-4 bg-slate-50 border border-border text-xs text-textSecondary space-y-2">
-            <h4 className="font-bold text-textPrimary">ข้อมูลสถาปัตยกรรมระบบ (Architecture Specifications):</h4>
+            <h4 className="font-bold text-textPrimary">
+              ข้อมูลสถาปัตยกรรมระบบ (Architecture Specifications):
+            </h4>
             <ul className="list-disc pl-5 space-y-1 text-[11.5px]">
-              <li><strong>Backend Gateway:</strong> .NET 10 Web API พร้อม RFC 9457 Problem Details Exception Handler</li>
-              <li><strong>Persistence:</strong> PostgreSQL 15 พร้อม EF Core Global Query Filter แยก Tenant ปลอดภัย 100%</li>
-              <li><strong>Document Renderer:</strong> Gotenberg 8 (Chromium 132 Engine สำหรับ PDF และ LibreOffice 24.8 สำหรับ Office)</li>
-              <li><strong>Object Storage:</strong> MinIO S3-compatible พร้อม Bounded 81,920-byte Streaming Egress</li>
+              <li>
+                <strong>Backend Gateway:</strong> .NET 10 Web API พร้อม RFC 9457 Problem Details Exception Handler
+              </li>
+              <li>
+                <strong>Persistence:</strong> PostgreSQL 15 พร้อม EF Core Global Query Filter แยก Tenant
+              </li>
+              <li>
+                <strong>Document Renderer:</strong> Gotenberg 8 (Chromium PDF และ LibreOffice Office)
+              </li>
+              <li>
+                <strong>Object Storage:</strong> MinIO S3-compatible พร้อม Bounded Streaming Egress
+              </li>
             </ul>
           </CardBlock>
         </div>
       )}
 
-      {/* Tab 2: Environment & API Keys */}
       {activeTab === 'env' && (
         <div className="space-y-4">
           <CardBlock className="p-4 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-textPrimary border-b border-border pb-2">
               <Server className="w-4 h-4 text-primary" />
-              <span>สภาพแวดล้อมระบบ (Environment Endpoints)</span>
+              <span>โครงสร้างการเชื่อมต่อ (BFF Architecture)</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-2.5 rounded-sm bg-surfaceSubtle border border-border space-y-1">
-                <span className="text-[11px] text-textMuted font-medium">Backend API URL</span>
-                <p className="font-mono text-textPrimary font-semibold">{apiUrl}</p>
-              </div>
-              <div className="p-2.5 rounded-sm bg-surfaceSubtle border border-border space-y-1">
                 <span className="text-[11px] text-textMuted font-medium">Server Proxy Route</span>
                 <p className="font-mono text-textPrimary font-semibold">/api/proxy/[...path]</p>
+              </div>
+              <div className="p-2.5 rounded-sm bg-surfaceSubtle border border-border space-y-1">
+                <span className="text-[11px] text-textMuted font-medium">Health Check Endpoint</span>
+                <p className="font-mono text-textPrimary font-semibold">/api/health</p>
               </div>
             </div>
           </CardBlock>
 
           <CardBlock className="p-4 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-textPrimary border-b border-border pb-2">
-              <Key className="w-4 h-4 text-primary" />
-              <span>กำหนด Master API Key ประจำบราวเซอร์ (Developer Testing)</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>ข้อมูลเซสชันปัจจุบัน (HttpOnly BFF Session)</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-2.5 rounded-sm bg-surfaceSubtle border border-border space-y-1">
+                <span className="text-[11px] text-textMuted font-medium">ผู้ใช้งาน (Account)</span>
+                <p className="font-mono text-textPrimary font-semibold">{user?.email || '—'}</p>
+              </div>
+              <div className="p-2.5 rounded-sm bg-surfaceSubtle border border-border space-y-1">
+                <span className="text-[11px] text-textMuted font-medium">บทบาท (Role / SystemRole)</span>
+                <p className="font-mono text-textPrimary font-semibold">
+                  {role} / {systemRole}
+                </p>
+              </div>
+              <div className="p-2.5 rounded-sm bg-surfaceSubtle border border-border space-y-1 sm:col-span-2">
+                <span className="text-[11px] text-textMuted font-medium">Active Workspace Project ID</span>
+                <p className="font-mono text-textPrimary font-semibold break-all">
+                  {projectId || '— (ยังไม่ได้เลือก Project)'}
+                </p>
+              </div>
             </div>
 
             <p className="text-xs text-textSecondary">
-              กุญแจนี้จะถูกบันทึกไว้ใน LocalStorage เพื่อใช้ทดสอบเรียก API ในกรณีที่ไม่ผ่าน Session Login:
+              ระบบใช้ HttpOnly Session Token แทนการจัดเก็บ API Key ในบราวเซอร์ หากต้องการสร้างกุญแจสำหรับ
+              ระบบภายนอก (Machine-to-Machine ผ่าน <code className="font-mono">X-API-Key</code>) สามารถจัดการได้ที่{' '}
+              <Link href="/api-keys" className="text-primary font-semibold hover:underline">
+                หน้าจัดการ API Keys
+              </Link>
+              .
             </p>
-
-            <div className="flex items-end gap-2 max-w-lg">
-              <div className="flex-1">
-                <Input
-                  label="Active Master Key"
-                  type="password"
-                  placeholder="smk_..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-              </div>
-              <Button variant="primary" size="md" onClick={handleSaveApiKey}>
-                {saved ? 'บันทึกแล้ว ✓' : 'บันทึกคีย์'}
-              </Button>
-            </div>
           </CardBlock>
         </div>
       )}
 
-      {/* Tab 3: SSoT Design Tokens Palette Reference */}
       {activeTab === 'tokens' && (
         <CardBlock className="p-4 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold text-textPrimary border-b border-border pb-2">
@@ -254,7 +249,7 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <p className="text-xs text-textSecondary">
-            สี Functional Categories ทั้ง 5 หมวดหมู่ ตามระเบียบข้อบังคับการออกแบบ ไม่มีสีกรมท่าเดิม:
+            สี Functional Categories ทั้ง 5 หมวดหมู่ ตามระเบียบข้อบังคับการออกแบบ:
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 pt-1">

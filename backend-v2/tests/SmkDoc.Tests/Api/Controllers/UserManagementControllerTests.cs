@@ -4,16 +4,37 @@ using SmkDoc.Api.Contracts.IdentityAccess.Users;
 using SmkDoc.Api.Controllers.IdentityAccess;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Commands.SetUserStatus;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Users.Queries.GetUserById;
 
 namespace SmkDoc.Tests.Api.Controllers;
 
 public sealed class UserManagementControllerTests
 {
+    private readonly IUseCase<GetUserByIdQuery, UserResultDto> _getByIdUseCase =
+        Substitute.For<IUseCase<GetUserByIdQuery, UserResultDto>>();
     private readonly IUseCase<SetUserStatusCommand, UserResultDto> _setStatusUseCase =
         Substitute.For<IUseCase<SetUserStatusCommand, UserResultDto>>();
 
     private UserManagementController CreateSut() =>
-        new(_setStatusUseCase);
+        new(_getByIdUseCase, _setStatusUseCase);
+
+    [Fact]
+    public async Task GetById_InvokesUseCase_ReturnsOkWithUserAndVersion()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var dto = new UserResultDto(userId, "admin@sammakorn.co.th", "Global", "User", "Member", true, DateTimeOffset.UtcNow, Version: 5);
+        _getByIdUseCase.ExecuteAsync(Arg.Is<GetUserByIdQuery>(q => q.UserId == userId), Arg.Any<CancellationToken>())
+            .Returns(dto);
+
+        // Act
+        var result = await CreateSut().GetById(userId, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var envelope = okResult.Value.Should().BeOfType<ApiResponse<UserResultDto>>().Subject;
+        envelope.Data.Should().BeEquivalentTo(dto);
+    }
 
     [Fact]
     public async Task SetStatus_InvokesUseCase_ReturnsOkWithUser()

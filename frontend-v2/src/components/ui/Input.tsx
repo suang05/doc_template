@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { LucideIcon } from 'lucide-react';
@@ -33,8 +35,18 @@ export interface InputProps
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, icon: Icon, helperText, className, id, ...props }, ref) => {
-    const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  ({ label, error, icon: Icon, helperText, className, id, 'aria-describedby': ariaDescribedBy, ...props }, ref) => {
+    const generatedId = React.useId();
+    const inputId = id || (label ? `${label.toLowerCase().replace(/\s+/g, '-')}-${generatedId}` : generatedId);
+    const errorId = `${inputId}-error`;
+    const helperId = `${inputId}-helper`;
+    const describedBy =
+      [
+        ariaDescribedBy,
+        error ? errorId : helperText ? helperId : undefined,
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined;
 
     return (
       <div className="w-full space-y-1">
@@ -54,6 +66,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
+            aria-invalid={error ? 'true' : 'false'}
+            aria-describedby={describedBy}
             className={cn(
               inputVariants({
                 hasError: Boolean(error),
@@ -66,9 +80,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         </div>
 
         {error ? (
-          <p className="text-[11px] text-red-600 leading-none">{error}</p>
+          <p id={errorId} className="text-[11px] text-red-600 leading-none">
+            {error}
+          </p>
         ) : helperText ? (
-          <p className="text-[11px] text-textMuted leading-none">{helperText}</p>
+          <p id={helperId} className="text-[11px] text-textMuted leading-none">
+            {helperText}
+          </p>
         ) : null}
       </div>
     );

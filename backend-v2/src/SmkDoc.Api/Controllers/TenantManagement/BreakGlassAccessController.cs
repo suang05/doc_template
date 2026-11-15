@@ -11,6 +11,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Commands.GrantBreakGlassAccess;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Commands.RevokeBreakGlassAccess;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.DTOs;
+using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Queries.GetBreakGlassGrantById;
 using SmkDoc.Application.Modules.TenantManagement.BreakGlass.Queries.ListBreakGlassGrants;
 
 namespace SmkDoc.Api.Controllers.TenantManagement;
@@ -26,6 +27,7 @@ namespace SmkDoc.Api.Controllers.TenantManagement;
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class BreakGlassAccessController(
     IUseCase<ListBreakGlassGrantsQuery, IReadOnlyList<BreakGlassGrantResultDto>> listGrantsUseCase,
+    IUseCase<GetBreakGlassGrantByIdQuery, BreakGlassGrantResultDto> getGrantByIdUseCase,
     IUseCase<GrantBreakGlassAccessCommand, BreakGlassGrantResultDto> grantAccessUseCase,
     IUseCase<RevokeBreakGlassAccessCommand> revokeAccessUseCase) : ControllerBase
 {
@@ -40,6 +42,17 @@ public sealed class BreakGlassAccessController(
         var query = new ListBreakGlassGrantsQuery(superAdminUserId, targetProjectId);
         var result = await listGrantsUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IReadOnlyList<BreakGlassGrantResultDto>>(result));
+    }
+
+    /// <summary>Get a single break-glass grant by ID along with its current ETag.</summary>
+    [HttpGet("{grantId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<BreakGlassGrantResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById([FromRoute] Guid grantId, CancellationToken ct)
+    {
+        var query = new GetBreakGlassGrantByIdQuery(grantId);
+        var result = await getGrantByIdUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<BreakGlassGrantResultDto>(result));
     }
 
     /// <summary>Issue a time-boxed audited break-glass access grant into a tenant project.</summary>

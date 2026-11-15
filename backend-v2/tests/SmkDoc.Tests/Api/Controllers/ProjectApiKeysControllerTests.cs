@@ -6,6 +6,7 @@ using SmkDoc.Api.Controllers.IdentityAccess;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetApiKeyById;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 namespace SmkDoc.Tests.Api.Controllers;
@@ -13,11 +14,31 @@ namespace SmkDoc.Tests.Api.Controllers;
 public sealed class ProjectApiKeysControllerTests
 {
     private readonly IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>> _listUseCase = Substitute.For<IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>>>();
+    private readonly IUseCase<GetApiKeyByIdQuery, ApiKeyResultDto> _getByIdUseCase = Substitute.For<IUseCase<GetApiKeyByIdQuery, ApiKeyResultDto>>();
     private readonly IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> _createUseCase = Substitute.For<IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>>();
     private readonly IUseCase<RevokeApiKeyCommand> _revokeUseCase = Substitute.For<IUseCase<RevokeApiKeyCommand>>();
 
     private ProjectApiKeysController CreateSut() =>
-        new(_listUseCase, _createUseCase, _revokeUseCase);
+        new(_listUseCase, _getByIdUseCase, _createUseCase, _revokeUseCase);
+
+    [Fact]
+    public async Task GetById_WithProjectIdAndKeyId_InvokesUseCaseAndReturnsOk()
+    {
+        // Arrange
+        var projectId = Guid.NewGuid();
+        var keyId = Guid.NewGuid();
+        var dto = new ApiKeyResultDto(keyId, "Admin Key", "portal", true, null, DateTimeOffset.UtcNow, "ReadWrite", "smk_live_****9999", Version: 1);
+        _getByIdUseCase.ExecuteAsync(Arg.Is<GetApiKeyByIdQuery>(q => q.KeyId == keyId && q.ProjectId == projectId), Arg.Any<CancellationToken>())
+            .Returns(dto);
+
+        // Act
+        var result = await CreateSut().GetById(projectId, keyId, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        var envelope = okResult.Value.Should().BeOfType<ApiResponse<ApiKeyResultDto>>().Subject;
+        envelope.Data.Should().BeEquivalentTo(dto);
+    }
 
     [Fact]
     public async Task ListKeys_WithProjectId_InvokesUseCaseAndReturnsOk()

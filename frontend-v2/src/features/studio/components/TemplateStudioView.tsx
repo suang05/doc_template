@@ -5,7 +5,13 @@ import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { useTemplateStudio, parseCombinedHtml } from '../hooks/useTemplateStudio';
 import { useLivePreview } from '../hooks/useLivePreview';
 import { extractVariablesFromHtml } from '../domain/variableExtractor';
-import { registerTemplateCompletion } from '../domain/templateCompletion';
+import {
+  registerTemplateCompletion,
+  type MonacoDisposable,
+  type MonacoEditorInstance,
+  type MonacoNamespace,
+} from '../domain/templateCompletion';
+import { ConflictBanner } from '@/components/ui';
 import { StudioHeader } from './StudioHeader';
 import { StudioEditorTabs, StudioTabKey } from './StudioEditorTabs';
 import { StudioPreviewSection } from './StudioPreviewSection';
@@ -43,6 +49,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     persistedSamplePayload,
     saveHtml,
     validate,
+    conflict,
+    clearConflict,
+    reloadStudio,
   } = useTemplateStudio(templateId);
 
   const [sampleDataJson, setSampleDataJson] = useState('{}');
@@ -53,9 +62,9 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
   const [importNotice, setImportNotice] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const editorRef = useRef<any>(null);
-  const monacoRef = useRef<any>(null);
-  const completionDisposableRef = useRef<any>(null);
+  const editorRef = useRef<MonacoEditorInstance | null>(null);
+  const monacoRef = useRef<MonacoNamespace | null>(null);
+  const completionDisposableRef = useRef<MonacoDisposable | null>(null);
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,7 +86,7 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
     e.target.value = '';
   };
 
-  const handleEditorMount = (editor: any, monaco: any) => {
+  const handleEditorMount = (editor: MonacoEditorInstance, monaco: MonacoNamespace) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
 
@@ -237,6 +246,20 @@ export const TemplateStudioView: React.FC<TemplateStudioViewProps> = ({
           >
             ×
           </button>
+        </div>
+      )}
+
+      {conflict && (
+        <div className="px-3 py-2 border-b border-border shrink-0 bg-surface">
+          <ConflictBanner
+            conflict={conflict}
+            onReload={async () => {
+              clearConflict();
+              await reloadStudio();
+            }}
+            onDismiss={clearConflict}
+            reloadLabel="โหลด HTML ล่าสุดจากเซิร์ฟเวอร์"
+          />
         </div>
       )}
 

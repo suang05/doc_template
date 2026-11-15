@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import {
   BarChart3,
   CheckCircle2,
@@ -12,9 +13,10 @@ import {
   Server,
   FileSpreadsheet,
 } from 'lucide-react';
-import { useAnalytics } from '../hooks/useAnalytics';
 import { PageHeader, Button, Badge } from '@/components/ui';
-import { DocumentFormat } from '@/types/api';
+import { isSuccessGenerationStatus } from '@/constants/domain';
+import type { DocumentFormat } from '@/tokens';
+import { useAnalytics } from '../hooks/useAnalytics';
 
 export const AnalyticsView: React.FC = () => {
   const {
@@ -30,27 +32,20 @@ export const AnalyticsView: React.FC = () => {
     refresh,
   } = useAnalytics();
 
-  const totalFormatSum = (formatCounts.pdf + formatCounts.docx + formatCounts.xlsx) || 1;
+  const totalFormatSum = formatCounts.pdf + formatCounts.docx + formatCounts.xlsx || 1;
   const pdfPct = Math.round((formatCounts.pdf / totalFormatSum) * 100);
   const docxPct = Math.round((formatCounts.docx / totalFormatSum) * 100);
   const xlsxPct = Math.round((formatCounts.xlsx / totalFormatSum) * 100);
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <PageHeader
         title="สถิติและการใช้งานระบบ (System Analytics & Telemetry)"
         description="ภาพรวมอัตราการสร้างเอกสาร, ความเร็วในการแปลงผล Gotenberg, และปริมาณงานของระบบ"
         icon={BarChart3}
         iconColor="sky"
         rightSlot={
-          <Button
-            variant="outline"
-            size="sm"
-            icon={RefreshCw}
-            loading={loading}
-            onClick={refresh}
-          >
+          <Button variant="outline" size="sm" icon={RefreshCw} loading={loading} onClick={refresh}>
             รีเฟรชข้อมูล
           </Button>
         }
@@ -63,9 +58,7 @@ export const AnalyticsView: React.FC = () => {
         </div>
       )}
 
-      {/* 4 KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Generated */}
         <div className="p-4 bg-surface border border-border rounded-md shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-textMuted">เอกสารที่สร้างทั้งหมด</span>
@@ -81,7 +74,6 @@ export const AnalyticsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Success Rate */}
         <div className="p-4 bg-surface border border-border rounded-md shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-textMuted">อัตราความสำเร็จ (SLA)</span>
@@ -97,7 +89,6 @@ export const AnalyticsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Latency */}
         <div className="p-4 bg-surface border border-border rounded-md shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-textMuted">ความเร็วเฉลี่ย (Avg Latency)</span>
@@ -113,7 +104,6 @@ export const AnalyticsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Active Templates */}
         <div className="p-4 bg-surface border border-border rounded-md shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-textMuted">แม่แบบที่เปิดใช้งาน</span>
@@ -130,55 +120,69 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid: Throughput Breakdown & Caller Apps (2 Columns) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Output Format Throughput Breakdown */}
         <div className="lg:col-span-7 bg-surface border border-border rounded-md p-5 shadow-xs flex flex-col justify-between">
           <div>
-            <h3 className="text-sm font-bold text-textPrimary">สัดส่วนการสร้างเอกสารแยกตามรูปแบบ (Format Distribution)</h3>
-            <p className="text-xs text-textMuted mt-0.5">ปริมาณงานที่ประมวลผลผ่าน Gotenberg และ LibreOffice/OpenXML</p>
+            <h3 className="text-sm font-bold text-textPrimary">
+              สัดส่วนการสร้างเอกสารแยกตามรูปแบบ (Format Distribution)
+            </h3>
+            <p className="text-xs text-textMuted mt-0.5">
+              ปริมาณงานที่ประมวลผลผ่าน Gotenberg และ LibreOffice/OpenXML
+            </p>
           </div>
 
           <div className="space-y-4 my-6">
-            {/* PDF */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-textPrimary flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-rose-500" />
                   PDF Documents
                 </span>
-                <span className="font-mono text-textSecondary">{formatCounts.pdf} ไฟล์ ({pdfPct}%)</span>
+                <span className="font-mono text-textSecondary">
+                  {formatCounts.pdf} ไฟล์ ({pdfPct}%)
+                </span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-sm overflow-hidden">
-                <div className="h-full bg-rose-500 rounded-sm transition-all duration-500" style={{ width: `${pdfPct}%` }} />
+                <div
+                  className="h-full bg-rose-500 rounded-sm transition-all duration-500"
+                  style={{ width: `${pdfPct}%` }}
+                />
               </div>
             </div>
 
-            {/* Word DOCX */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-textPrimary flex items-center gap-1.5">
                   <FileText className="w-3.5 h-3.5 text-blue-500" />
                   Microsoft Word (.docx)
                 </span>
-                <span className="font-mono text-textSecondary">{formatCounts.docx} ไฟล์ ({docxPct}%)</span>
+                <span className="font-mono text-textSecondary">
+                  {formatCounts.docx} ไฟล์ ({docxPct}%)
+                </span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-sm overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-sm transition-all duration-500" style={{ width: `${docxPct}%` }} />
+                <div
+                  className="h-full bg-blue-500 rounded-sm transition-all duration-500"
+                  style={{ width: `${docxPct}%` }}
+                />
               </div>
             </div>
 
-            {/* Excel XLSX */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-textPrimary flex items-center gap-1.5">
                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
                   Microsoft Excel (.xlsx)
                 </span>
-                <span className="font-mono text-textSecondary">{formatCounts.xlsx} ไฟล์ ({xlsxPct}%)</span>
+                <span className="font-mono text-textSecondary">
+                  {formatCounts.xlsx} ไฟล์ ({xlsxPct}%)
+                </span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-sm overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-sm transition-all duration-500" style={{ width: `${xlsxPct}%` }} />
+                <div
+                  className="h-full bg-emerald-500 rounded-sm transition-all duration-500"
+                  style={{ width: `${xlsxPct}%` }}
+                />
               </div>
             </div>
           </div>
@@ -189,11 +193,12 @@ export const AnalyticsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Caller Application Volume */}
         <div className="lg:col-span-5 bg-surface border border-border rounded-md p-5 shadow-xs flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-textPrimary">ปริมาณเรียกใช้งานตาม Caller App</h3>
-            <p className="text-xs text-textMuted mt-0.5">ระบบภายนอกและโมดูลภายในที่เชื่อมต่อ API</p>
+            <p className="text-xs text-textMuted mt-0.5">
+              ระบบภายนอกและโมดูลภายในที่เชื่อมต่อ API
+            </p>
           </div>
 
           <div className="space-y-3 my-4">
@@ -201,7 +206,10 @@ export const AnalyticsView: React.FC = () => {
               <p className="text-xs text-textMuted py-4 text-center">ยังไม่มีประวัติการเรียกใช้งาน</p>
             ) : (
               Object.entries(callerAppCounts).map(([app, count]) => (
-                <div key={app} className="flex items-center justify-between p-2.5 rounded-sm bg-surfaceSubtle border border-border text-xs">
+                <div
+                  key={app}
+                  className="flex items-center justify-between p-2.5 rounded-sm bg-surfaceSubtle border border-border text-xs"
+                >
                   <div className="flex items-center gap-2">
                     <Server className="w-3.5 h-3.5 text-primary" />
                     <span className="font-mono font-semibold text-textPrimary">{app}</span>
@@ -220,19 +228,20 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Generation Logs Feed */}
       <div className="bg-surface border border-border rounded-md p-5 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-textPrimary">บันทึกการสร้างเอกสารล่าสุด (Recent Activity Feed)</h3>
+            <h3 className="text-sm font-bold text-textPrimary">
+              บันทึกการสร้างเอกสารล่าสุด (Recent Activity Feed)
+            </h3>
             <p className="text-xs text-textMuted mt-0.5">การประมวลผล 10 รายการล่าสุดในระบบ</p>
           </div>
-          <a
+          <Link
             href="/logs"
             className="text-xs font-semibold text-primary hover:underline underline-offset-2"
           >
             ดูทั้งหมดใน Logs &rarr;
-          </a>
+          </Link>
         </div>
 
         {recentLogs.length === 0 ? (
@@ -241,44 +250,42 @@ export const AnalyticsView: React.FC = () => {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {recentLogs.map((log) => (
-              <div key={log.id} className="py-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-3">
-                  <Badge
-                    status={log.status === 'success' ? 'success' : 'failed'}
-                    dot
-                    size="sm"
-                  >
-                    {log.status === 'success' ? 'สำเร็จ' : 'ล้มเหลว'}
-                  </Badge>
+            {recentLogs.map((log) => {
+              const ok = isSuccessGenerationStatus(log.status);
+              return (
+                <div key={log.id} className="py-2.5 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-3">
+                    <Badge status={ok ? 'success' : 'failed'} dot size="sm">
+                      {ok ? 'สำเร็จ' : log.status || 'ล้มเหลว'}
+                    </Badge>
 
-                  <div>
-                    <span className="font-mono font-semibold text-textPrimary">
-                      {log.callerApp || 'direct-portal'}
-                    </span>
-                    <span className="text-textMuted ml-2 text-[11px]">
-                      {new Date(log.createdAt).toLocaleTimeString('th-TH')}
+                    <div>
+                      <span className="font-mono font-semibold text-textPrimary">
+                        {log.callerApp || 'direct-portal'}
+                      </span>
+                      <span className="text-textMuted ml-2 text-[11px]">
+                        {new Date(log.createdAt).toLocaleTimeString('th-TH')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      format={(log.outputFormat?.toLowerCase() || 'pdf') as DocumentFormat}
+                      size="sm"
+                    >
+                      {(log.outputFormat || 'pdf').toUpperCase()}
+                    </Badge>
+                    <span className="font-mono text-[11px] text-textMuted">
+                      {log.durationMs || 0} ms
                     </span>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <Badge
-                    format={(log.outputFormat?.toLowerCase() || 'pdf') as DocumentFormat}
-                    size="sm"
-                  >
-                    {(log.outputFormat || 'pdf').toUpperCase()}
-                  </Badge>
-                  <span className="font-mono text-[11px] text-textMuted">
-                    {log.durationMs || 0} ms
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
     </div>
   );
 };
-

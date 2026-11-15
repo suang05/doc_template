@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { UserPlus, Trash2, Shield, UserCheck, UserX, Users } from 'lucide-react';
 import {
   Button,
@@ -13,10 +13,24 @@ import {
   EmptyState,
   PageHeader,
   Pill,
+  ConflictBanner,
+  Toast,
   type PillIntent,
 } from '@/components/ui';
-import { inviteUser, updateUserRole, removeUser, setUserStatus } from '../api/users.api';
-import { InviteUserRequestSchema, userRoles, type UserListItem, type UserRole } from '@/types/api';
+import { ApiError, extractErrorMessage } from '@/lib/api/client';
+import type { UserDto } from '@/lib/api/types';
+import { userRoles, type UserRole } from '@/constants/domain';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { useConflictRecovery } from '@/hooks/useConflictRecovery';
+import {
+  getManagementUserWithETag,
+  getUserWithETag,
+  inviteUser,
+  removeUser,
+  setUserStatus,
+  updateUserRole,
+} from '../api/users.api';
+import { InviteUserRequestSchema } from '../schemas/users.schema';
 import { useUsers } from '../hooks/useUsers';
 
 const ROLE_PILL: Record<UserRole, PillIntent> = {
@@ -29,20 +43,100 @@ const ROLE_OPTIONS = userRoles.map((r) => ({ value: r, label: r }));
 
 export function UsersView() {
   const { users, loading, error, reload } = useUsers();
+  const { isSuperAdmin } = useAuthContext();
+  const { conflict, captureConflict, clearConflict } = useConflictRecovery();
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({
-    email: '', password: '', firstName: '', lastName: '', role: 'Viewer' as UserRole,
+    email: '',
+    password: '',
+    firstName: '',
+    lastName: '',
+    role: 'Viewer' as UserRole,
   });
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [roleTarget, setRoleTarget] = useState<UserListItem | null>(null);
+  const [roleTarget, setRoleTarget] = useState<UserDto | null>(null);
+  const [roleEtag, setRoleEtag] = useState<string | null>(null);
   const [newRole, setNewRole] = useState<UserRole>('Viewer');
   const [isRoleOpen, setIsRoleOpen] = useState(false);
 
-  const [removeTarget, setRemoveTarget] = useState<UserListItem | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<UserDto | null>(null);
+  const [removeEtag, setRemoveEtag] = useState<string | null>(null);
   const [isRemoveOpen, setIsRemoveOpen] = useState(false);
+
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(
+    null,
+  );
+  const inviteIdempotencyRef = useRef<string | null>(null);
+
+  const openInviteModal = () => {
+    setInviteErrors({});
+    inviteIdempotencyRef.current = crypto.randomUUID();
+    setIsInviteOpen(true);
+  };
+
+  const closeInviteModal = () => {
+    setIsInviteOpen(false);
+    setInviteErrors({});
+    inviteIdempotencyRef.current = null;
+  };
+
+  const openRoleModal = async (u: UserDto) => {
+    clearConflict();
+    setRoleTarget(u);
+    setRoleEtag(null);
+    setNewRole((userRoles.includes(u.role as UserRole) ? u.role : 'Viewer') as UserRole);
+    setIsRoleOpen(true);
+    try {
+      const latest = await getUserWithETag(u.id);
+      setRoleTarget(latest.data);
+      setRoleEtag(latest.etag);
+      setNewRole((userRoles.includes(latest.data.role as UserRole) ? latest.data.role : 'Viewer') as UserRole);
+    } catch (err) {
+      setToast({ type: 'error', message: extractErrorMessage(err) });
+    }
+  };
+
+  const openRemoveModal = async (u: UserDto) => {
+    clearConflict();
+    setRemoveTarget(u);
+    setRemoveEtag(null);
+    setIsRemoveOpen(true);
+    try {
+      const latest = await getUserWithETag(u.id);
+      setRemoveTarget(latest.data);
+      setRemoveEtag(latest.etag);
+    } catch (err) {
+      setToast({ type: 'error', message: extractErrorMessage(err) });
+    }
+  };
+
+  const handleReloadConflict = useCallback(async () => {
+    clearConflict();
+    await reload();
+    if (isRoleOpen && roleTarget) {
+      try {
+        const latest = await getUserWithETag(roleTarget.id);
+        setRoleTarget(latest.data);
+        setRoleEtag(latest.etag);
+        setNewRole((userRoles.includes(latest.data.role as UserRole) ? latest.data.role : 'Viewer') as UserRole);
+      } catch (err) {
+        setToast({ type: 'error', message: extractErrorMessage(err) });
+      }
+    } else if (isRemoveOpen && removeTarget) {
+      try {
+        const latest = await getUserWithETag(removeTarget.id);
+        setRemoveTarget(latest.data);
+        setRemoveEtag(latest.etag);
+      } catch (err) {
+        setToast({ type: 'error', message: extractErrorMessage(err) });
+      }
+    }
+    setToast({ type: 'info', message: 'โหลดรายชื่อผู้ใช้ล่าสุดแล้ว' });
+  }, [clearConflict, isRemoveOpen, isRoleOpen, reload, removeTarget, roleTarget]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +146,7 @@ export function UsersView() {
     if (!parsed.success) {
       const errs: Record<string, string> = {};
       for (const issue of parsed.error.issues) {
-        const field = issue.path[0] as string;
+        const field = String(issue.path[0] ?? 'general');
         errs[field] = issue.message;
       }
       setInviteErrors(errs);
@@ -60,13 +154,21 @@ export function UsersView() {
     }
 
     setIsSubmitting(true);
+    const attemptKey = inviteIdempotencyRef.current ?? crypto.randomUUID();
+    inviteIdempotencyRef.current = attemptKey;
+
     try {
-      await inviteUser(parsed.data);
-      setIsInviteOpen(false);
+      await inviteUser(parsed.data, attemptKey);
+      closeInviteModal();
       setInviteForm({ email: '', password: '', firstName: '', lastName: '', role: 'Viewer' });
       await reload();
-    } catch (err: unknown) {
-      setInviteErrors({ general: err instanceof Error ? err.message : 'เพิ่มผู้ใช้ไม่สำเร็จ' });
+      setToast({ type: 'success', message: 'เพิ่มผู้ใช้เข้าโปรเจกต์สำเร็จ' });
+    } catch (err) {
+      if (err instanceof ApiError && Object.keys(err.fieldErrors).length > 0) {
+        setInviteErrors({ ...err.fieldErrors, general: extractErrorMessage(err) });
+      } else {
+        setInviteErrors({ general: extractErrorMessage(err, 'เพิ่มผู้ใช้ไม่สำเร็จ') });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -75,13 +177,17 @@ export function UsersView() {
   const handleUpdateRole = async () => {
     if (!roleTarget) return;
     setIsSubmitting(true);
+    clearConflict();
     try {
-      await updateUserRole(roleTarget.id, { role: newRole });
+      await updateUserRole(roleTarget.id, { role: newRole }, roleEtag);
       setIsRoleOpen(false);
       setRoleTarget(null);
+      setRoleEtag(null);
       await reload();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'เปลี่ยน Role ไม่สำเร็จ');
+      setToast({ type: 'success', message: 'อัปเดต Role สำเร็จ' });
+    } catch (err) {
+      if (captureConflict(err)) return;
+      setToast({ type: 'error', message: extractErrorMessage(err, 'เปลี่ยน Role ไม่สำเร็จ') });
     } finally {
       setIsSubmitting(false);
     }
@@ -90,35 +196,51 @@ export function UsersView() {
   const handleRemove = async () => {
     if (!removeTarget) return;
     setIsSubmitting(true);
+    clearConflict();
     try {
-      await removeUser(removeTarget.id);
+      await removeUser(removeTarget.id, removeEtag);
       setIsRemoveOpen(false);
       setRemoveTarget(null);
+      setRemoveEtag(null);
       await reload();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'ลบผู้ใช้ไม่สำเร็จ');
+      setToast({ type: 'success', message: 'ลบผู้ใช้ออกจากโปรเจกต์สำเร็จ' });
+    } catch (err) {
+      if (captureConflict(err)) return;
+      setToast({ type: 'error', message: extractErrorMessage(err, 'ลบผู้ใช้ไม่สำเร็จ') });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleToggleStatus = async (user: UserListItem) => {
+  const handleToggleStatus = async (user: UserDto) => {
+    if (!isSuperAdmin) return;
+    clearConflict();
+    setTogglingUserId(user.id);
     try {
-      await setUserStatus(user.id, !user.isActive);
+      const latest = await getManagementUserWithETag(user.id);
+      await setUserStatus(user.id, { isActive: !latest.data.isActive }, latest.etag);
       await reload();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'เปลี่ยนสถานะไม่สำเร็จ');
+      setToast({
+        type: 'success',
+        message: `${!latest.data.isActive ? 'เปิดใช้งาน' : 'ระงับบัญชี'} ${user.email} สำเร็จ`,
+      });
+    } catch (err) {
+      if (captureConflict(err)) return;
+      setToast({ type: 'error', message: extractErrorMessage(err, 'เปลี่ยนสถานะไม่สำเร็จ') });
+    } finally {
+      setTogglingUserId(null);
     }
   };
 
-  const columns: Column<UserListItem>[] = [
+  const columns: Column<UserDto>[] = [
     {
       header: 'ผู้ใช้',
       accessor: (u) => (
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
             <span className="text-[10px] font-semibold text-primary">
-              {((u.firstName?.[0] ?? '') + (u.lastName?.[0] ?? '')).toUpperCase() || u.email[0].toUpperCase()}
+              {((u.firstName?.[0] ?? '') + (u.lastName?.[0] ?? '')).toUpperCase() ||
+                u.email[0].toUpperCase()}
             </span>
           </div>
           <div className="min-w-0">
@@ -150,7 +272,11 @@ export function UsersView() {
       header: 'เพิ่มเมื่อ',
       accessor: (u) => (
         <span className="text-xs text-textMuted">
-          {new Date(u.createdAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
+          {new Date(u.createdAt).toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })}
         </span>
       ),
     },
@@ -158,23 +284,32 @@ export function UsersView() {
       header: '',
       accessor: (u) => (
         <div className="flex items-center gap-1 justify-end">
+          {isSuperAdmin && (
+            <button
+              type="button"
+              disabled={togglingUserId === u.id}
+              onClick={() => void handleToggleStatus(u)}
+              className="p-1 rounded hover:bg-surface2 text-textMuted hover:text-textSecondary transition-colors cursor-pointer disabled:opacity-50"
+              aria-label={u.isActive ? `ระงับบัญชี ${u.email}` : `เปิดใช้งาน ${u.email}`}
+              title={u.isActive ? 'ระงับบัญชีระดับแพลตฟอร์ม (SuperAdmin)' : 'เปิดใช้งานบัญชี (SuperAdmin)'}
+            >
+              {u.isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+            </button>
+          )}
           <button
-            onClick={() => handleToggleStatus(u)}
-            className="p-1 rounded hover:bg-surface2 text-textMuted hover:text-textSecondary transition-colors"
-            title={u.isActive ? 'ระงับบัญชี' : 'เปิดใช้งาน'}
-          >
-            {u.isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            onClick={() => { setRoleTarget(u); setNewRole(u.role as UserRole); setIsRoleOpen(true); }}
-            className="p-1 rounded hover:bg-surface2 text-textMuted hover:text-textSecondary transition-colors"
+            type="button"
+            onClick={() => void openRoleModal(u)}
+            className="p-1 rounded hover:bg-surface2 text-textMuted hover:text-textSecondary transition-colors cursor-pointer"
+            aria-label={`เปลี่ยน Role ของ ${u.email}`}
             title="เปลี่ยน Role"
           >
             <Shield className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => { setRemoveTarget(u); setIsRemoveOpen(true); }}
-            className="p-1 rounded hover:bg-surface2 text-textMuted hover:text-red-500 transition-colors"
+            type="button"
+            onClick={() => void openRemoveModal(u)}
+            className="p-1 rounded hover:bg-surface2 text-textMuted hover:text-red-500 transition-colors cursor-pointer"
+            aria-label={`ลบ ${u.email} ออกจากโปรเจกต์`}
             title="ลบออกจากโปรเจกต์"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -186,17 +321,27 @@ export function UsersView() {
 
   return (
     <div className="space-y-4 pb-6">
+      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
       <PageHeader
         title="จัดการผู้ใช้"
         description="จัดการสมาชิกและสิทธิ์การเข้าถึงโปรเจกต์"
         icon={Users}
         iconColor="indigo"
         rightSlot={
-          <Button icon={UserPlus} onClick={() => setIsInviteOpen(true)}>
+          <Button icon={UserPlus} onClick={openInviteModal}>
             เพิ่มผู้ใช้
           </Button>
         }
       />
+
+      {!isRoleOpen && !isRemoveOpen && conflict && (
+        <ConflictBanner
+          conflict={conflict}
+          onReload={handleReloadConflict}
+          onDismiss={clearConflict}
+        />
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-sm px-3 py-2">
@@ -210,23 +355,13 @@ export function UsersView() {
           title="ยังไม่มีผู้ใช้"
           description="เพิ่มผู้ใช้คนแรกเพื่อเริ่มต้นใช้งานร่วมกัน"
           actionLabel="เพิ่มผู้ใช้"
-          onAction={() => setIsInviteOpen(true)}
+          onAction={openInviteModal}
         />
       ) : (
-        <Table
-          data={users}
-          columns={columns}
-          keyExtractor={(u) => u.id}
-          loading={loading}
-        />
+        <Table data={users} columns={columns} keyExtractor={(u) => u.id} loading={loading} />
       )}
 
-      {/* Invite Modal */}
-      <Modal
-        isOpen={isInviteOpen}
-        onClose={() => { setIsInviteOpen(false); setInviteErrors({}); }}
-        title="เพิ่มผู้ใช้ใหม่"
-      >
+      <Modal isOpen={isInviteOpen} onClose={closeInviteModal} title="เพิ่มผู้ใช้ใหม่">
         <form onSubmit={handleInvite} className="space-y-3">
           {inviteErrors.general && (
             <div className="bg-red-50 border border-red-200 rounded-sm px-3 py-2">
@@ -265,15 +400,11 @@ export function UsersView() {
             label="Role"
             value={inviteForm.role}
             options={ROLE_OPTIONS}
+            error={inviteErrors.role}
             onChange={(e) => setInviteForm((f) => ({ ...f, role: e.target.value as UserRole }))}
           />
           <div className="flex justify-end gap-2 pt-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              onClick={() => { setIsInviteOpen(false); setInviteErrors({}); }}
-            >
+            <Button variant="ghost" size="sm" type="button" onClick={closeInviteModal}>
               ยกเลิก
             </Button>
             <Button size="sm" type="submit" loading={isSubmitting}>
@@ -283,13 +414,24 @@ export function UsersView() {
         </form>
       </Modal>
 
-      {/* Change Role Modal */}
       <Modal
         isOpen={isRoleOpen}
-        onClose={() => { setIsRoleOpen(false); setRoleTarget(null); }}
+        onClose={() => {
+          setIsRoleOpen(false);
+          setRoleTarget(null);
+          setRoleEtag(null);
+          clearConflict();
+        }}
         title="เปลี่ยน Role"
       >
         <div className="space-y-3">
+          {conflict && (
+            <ConflictBanner
+              conflict={conflict}
+              onReload={handleReloadConflict}
+              onDismiss={clearConflict}
+            />
+          )}
           <p className="text-xs text-textSecondary">
             เปลี่ยน Role ของ <span className="font-semibold text-textPrimary">{roleTarget?.email}</span>
           </p>
@@ -300,32 +442,66 @@ export function UsersView() {
             onChange={(e) => setNewRole(e.target.value as UserRole)}
           />
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="ghost" size="sm" onClick={() => { setIsRoleOpen(false); setRoleTarget(null); }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setIsRoleOpen(false);
+                setRoleTarget(null);
+                setRoleEtag(null);
+                clearConflict();
+              }}
+            >
               ยกเลิก
             </Button>
-            <Button size="sm" loading={isSubmitting} onClick={handleUpdateRole}>
+            <Button size="sm" loading={isSubmitting} onClick={() => void handleUpdateRole()}>
               บันทึก
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Remove Confirm Modal */}
       <Modal
         isOpen={isRemoveOpen}
-        onClose={() => { setIsRemoveOpen(false); setRemoveTarget(null); }}
+        onClose={() => {
+          setIsRemoveOpen(false);
+          setRemoveTarget(null);
+          setRemoveEtag(null);
+          clearConflict();
+        }}
         title="ลบผู้ใช้ออกจากโปรเจกต์"
       >
         <div className="space-y-4">
+          {conflict && (
+            <ConflictBanner
+              conflict={conflict}
+              onReload={handleReloadConflict}
+              onDismiss={clearConflict}
+            />
+          )}
           <p className="text-xs text-textSecondary">
             คุณต้องการลบ <span className="font-semibold text-textPrimary">{removeTarget?.email}</span>{' '}
             ออกจากโปรเจกต์นี้ใช่หรือไม่?
           </p>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => { setIsRemoveOpen(false); setRemoveTarget(null); }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setIsRemoveOpen(false);
+                setRemoveTarget(null);
+                setRemoveEtag(null);
+                clearConflict();
+              }}
+            >
               ยกเลิก
             </Button>
-            <Button size="sm" variant="danger" loading={isSubmitting} onClick={handleRemove}>
+            <Button
+              size="sm"
+              variant="danger"
+              loading={isSubmitting}
+              onClick={() => void handleRemove()}
+            >
               ลบออก
             </Button>
           </div>

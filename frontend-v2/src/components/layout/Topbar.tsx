@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -97,11 +98,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       {/* Right controls */}
       <div className="flex items-center gap-2">
         {/* Active Project Context */}
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-sm bg-surfaceSubtle border border-border text-[11px] text-textSecondary select-none">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-textMuted">Project:</span>
-          <span className="font-semibold text-textPrimary">Default Workspace</span>
-        </div>
+        <WorkspaceSwitcher />
 
         {/* Quick search shortcut */}
         <button

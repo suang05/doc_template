@@ -3,18 +3,19 @@ import { z } from 'zod';
 export const GenerationLogDtoSchema = z.object({
   id: z.string().uuid(),
   templateId: z.string().uuid().nullable().optional(),
-  templateVer: z.number().int().nullable().optional(),
+  templateVersionId: z.string().uuid().nullable().optional(),
   apiKeyId: z.string().uuid().nullable().optional(),
   callerApp: z.string().nullable().optional(),
-  inputData: z.string().nullable().optional(),
-  outputKey: z.string().nullable().optional(),
+  triggerSource: z.string().nullable().optional(),
   outputFormat: z.string().nullable().optional(),
-  durationMs: z.number().int().nullable().optional(),
+  fileSizeBytes: z.number().int().nullable().optional(),
+  pageCount: z.number().int().nullable().optional(),
+  durationMs: z.number().int(),
   status: z.string(),
   errorMsg: z.string().nullable().optional(),
   createdAt: z.string(),
 });
-export type GenerationLogDto = z.infer<typeof GenerationLogDtoSchema>;
+export type GenerationLogRecord = z.infer<typeof GenerationLogDtoSchema>;
 
 export const PaginationMetadataSchema = z.object({
   page: z.number().int(),
@@ -22,7 +23,7 @@ export const PaginationMetadataSchema = z.object({
   totalCount: z.number().int(),
   totalPages: z.number().int(),
 });
-export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>;
+export type PaginationMetadataRecord = z.infer<typeof PaginationMetadataSchema>;
 
 export const PagedApiResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
   z.object({
@@ -40,7 +41,6 @@ export const LogPayloadResultDtoSchema = z.object({
   logId: z.string().uuid(),
   payloadJson: z.string().nullable(),
   isOffloaded: z.boolean(),
-  offloadedKey: z.string().nullable(),
+  offloadedKey: z.string().nullable().optional(),
 });
-export type LogPayloadResultDto = z.infer<typeof LogPayloadResultDtoSchema>;
-
+export type LogPayloadResult = z.infer<typeof LogPayloadResultDtoSchema>;

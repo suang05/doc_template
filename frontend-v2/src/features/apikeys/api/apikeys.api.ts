@@ -1,39 +1,55 @@
-import { apiClient } from '@/lib/api/client';
-import {
-  ApiResponse,
-  ApiKeyItem,
+import { apiClient, apiRequestWithMeta } from '@/lib/api/client';
+import type {
+  ApiEnvelope,
+  ApiKeyDto,
   CreateApiKeyRequest,
-  CreatedApiKeyResponse,
-} from '@/types/api';
+  CreateApiKeyResultDto,
+  ResourceWithETag,
+} from '@/lib/api/types';
 
 export const apiKeysApi = {
   /**
    * List all API keys (SSoT: GET /api/v1/api-keys)
    */
-  async listKeys(): Promise<ApiKeyItem[]> {
-    const res = await apiClient<ApiResponse<ApiKeyItem[]>>('/api/v1/api-keys', {
+  async listKeys(): Promise<ApiKeyDto[]> {
+    const res = await apiClient<ApiEnvelope<ApiKeyDto[]>>('/api/v1/api-keys', {
       method: 'GET',
     });
     return res.data;
   },
 
   /**
-   * Create new API key (SSoT: POST /api/v1/api-keys)
+   * Get single API key with ETag (SSoT: GET /api/v1/api-keys/{id})
    */
-  async createKey(request: CreateApiKeyRequest): Promise<CreatedApiKeyResponse> {
-    const res = await apiClient<ApiResponse<CreatedApiKeyResponse>>('/api/v1/api-keys', {
+  async getWithETag(id: string): Promise<ResourceWithETag<ApiKeyDto>> {
+    const res = await apiRequestWithMeta<ApiEnvelope<ApiKeyDto>>(`/api/v1/api-keys/${id}`, {
+      method: 'GET',
+    });
+    return { ...res, data: res.data.data };
+  },
+
+  /**
+   * Create new API key (SSoT: POST /api/v1/api-keys, idempotent)
+   */
+  async createKey(
+    request: CreateApiKeyRequest,
+    idempotencyKey?: string,
+  ): Promise<CreateApiKeyResultDto> {
+    const res = await apiClient<ApiEnvelope<CreateApiKeyResultDto>>('/api/v1/api-keys', {
       method: 'POST',
       body: JSON.stringify(request),
+      idempotencyKey,
     });
     return res.data;
   },
 
   /**
-   * Revoke an API key (SSoT: DELETE /api/v1/api-keys/{id})
+   * Revoke an API key with optimistic concurrency (SSoT: DELETE /api/v1/api-keys/{id})
    */
-  async revokeKey(id: string): Promise<{ success: boolean }> {
+  async revokeKey(id: string, ifMatch?: string | null): Promise<{ success: boolean }> {
     await apiClient<void>(`/api/v1/api-keys/${id}`, {
       method: 'DELETE',
+      ifMatch,
     });
     return { success: true };
   },

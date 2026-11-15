@@ -1,6 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
 import { templatesApi } from '@/features/templates/api/templates.api';
-import { TemplateDto, TemplateVersionDto, TemplateValidationResult } from '@/types/api';
+import { extractErrorMessage } from '@/lib/api/client';
+import type {
+  TemplateDto,
+  TemplateValidationResultDto,
+  TemplateVersionDto,
+} from '@/lib/api/types';
+import { useConflictRecovery } from '@/hooks/useConflictRecovery';
 import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
 
 export const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
@@ -146,7 +152,9 @@ export function useTemplateStudio(templateId: string | null) {
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [versions, setVersions] = useState<TemplateVersionDto[]>([]);
-  const [validationResult, setValidationResult] = useState<TemplateValidationResult | null>(null);
+  const [validationResult, setValidationResult] = useState<TemplateValidationResultDto | null>(null);
+  const [etag, setEtag] = useState<string | null>(null);
+  const { conflict, captureConflict, clearConflict } = useConflictRecovery();
 
   const [persistedSamplePayload, setPersistedSamplePayload] = useState<string | null>(null);
   const [dataSchema, setDataSchema] = useState<string | null>(null);
@@ -163,7 +171,10 @@ export function useTemplateStudio(templateId: string | null) {
 
       let content = '';
       try {
-        const studioBundle = await templatesApi.getTemplateStudio(templateId);
+        const studioRes = await templatesApi.getTemplateStudioWithETag(templateId);
+        const studioBundle = studioRes.data;
+        setEtag(studioRes.etag);
+        clearConflict();
         content = studioBundle.html;
         if (studioBundle.samplePayload) {
           setPersistedSamplePayload(studioBundle.samplePayload);
@@ -174,6 +185,8 @@ export function useTemplateStudio(templateId: string | null) {
       } catch {
         try {
           content = await templatesApi.getTemplateHtml(templateId);
+          const metaRes = await templatesApi.getTemplateWithETag(templateId).catch(() => null);
+          setEtag(metaRes?.etag ?? null);
         } catch {
           content = '';
         }
@@ -201,7 +214,7 @@ export function useTemplateStudio(templateId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [templateId]);
+  }, [templateId, clearConflict]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -230,12 +243,23 @@ export function useTemplateStudio(templateId: string | null) {
     if (!templateId) throw new Error('ไม่พบ Template ID — กรุณาเปิด Template จากรายการก่อนบันทึก');
     setSaving(true);
     setError(null);
+    clearConflict();
     try {
-      const res = await templatesApi.saveTemplateHtml(templateId, {
-        html,
-        samplePayload,
-        changeNote: changeNote || 'แก้ไขจาก Template Studio',
-      });
+      const res = await templatesApi.saveTemplateHtmlWithETag(
+        templateId,
+        {
+          html,
+          samplePayload,
+          changeNote: changeNote || 'แก้ไขจาก Template Studio',
+        },
+        etag,
+      );
+      if (res.etag) {
+        setEtag(res.etag);
+      } else {
+        const latest = await templatesApi.getTemplateWithETag(templateId).catch(() => null);
+        if (latest?.etag) setEtag(latest.etag);
+      }
       setInitialHtml(html);
       setIsDirty(false);
       if (samplePayload) {
@@ -243,15 +267,17 @@ export function useTemplateStudio(templateId: string | null) {
       }
       const vList = await templatesApi.listTemplateVersions(templateId);
       setVersions(vList);
-      return res.version;
+      return res.data.version;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'บันทึก HTML ไม่สำเร็จ';
-      setError(msg);
-      throw new Error(msg);
+      if (!captureConflict(err)) {
+        const msg = extractErrorMessage(err, 'บันทึก HTML ไม่สำเร็จ');
+        setError(msg);
+      }
+      throw err;
     } finally {
       setSaving(false);
     }
-  }, [templateId, html]);
+  }, [templateId, html, etag, captureConflict, clearConflict]);
 
   const validate = useCallback(async () => {
     if (!templateId) return;
@@ -261,7 +287,7 @@ export function useTemplateStudio(templateId: string | null) {
       setValidationResult(res);
       return res;
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'ตรวจสอบโครงสร้างไม่สำเร็จ');
+      setError(extractErrorMessage(err, 'ตรวจสอบโครงสร้างไม่สำเร็จ'));
     } finally {
       setValidating(false);
     }
@@ -285,6 +311,10 @@ export function useTemplateStudio(templateId: string | null) {
     validationResult,
     persistedSamplePayload,
     dataSchema,
+    etag,
+    conflict,
+    clearConflict,
+    reloadStudio: () => loadTemplateData(),
     saveHtml: saveHtmlAction,
     validate,
     reload: () => loadTemplateData(),

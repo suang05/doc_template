@@ -1,19 +1,23 @@
 import React from 'react';
-import { FileText, RefreshCw, Play } from 'lucide-react';
+import { FileText, RefreshCw, Play, Layers } from 'lucide-react';
 import { Button } from '@/components/ui';
 
 export interface GeneratorActionBarProps {
   generating: boolean;
+  enqueuing?: boolean;
   previewLoading: boolean;
   onRefreshPreview: () => void;
   onGenerate: () => void;
+  onEnqueueBackground?: () => void;
 }
 
 export const GeneratorActionBar: React.FC<GeneratorActionBarProps> = ({
   generating,
+  enqueuing = false,
   previewLoading,
   onRefreshPreview,
   onGenerate,
+  onEnqueueBackground,
 }) => {
   return (
     <div className="flex items-center justify-between pb-3 border-b border-border shrink-0">
@@ -38,11 +42,24 @@ export const GeneratorActionBar: React.FC<GeneratorActionBarProps> = ({
         >
           รีเฟรช Preview
         </Button>
+        {onEnqueueBackground && (
+          <Button
+            variant="secondary"
+            size="md"
+            icon={Layers}
+            loading={enqueuing}
+            disabled={generating}
+            onClick={onEnqueueBackground}
+          >
+            ส่งเข้าคิว Background (Pipeline C)
+          </Button>
+        )}
         <Button
           variant="primary"
           size="md"
           icon={Play}
           loading={generating}
+          disabled={enqueuing}
           onClick={onGenerate}
         >
           สร้างเอกสาร
@@ -51,4 +68,3 @@ export const GeneratorActionBar: React.FC<GeneratorActionBarProps> = ({
     </div>
   );
 };
-

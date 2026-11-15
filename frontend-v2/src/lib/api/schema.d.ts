@@ -4,6 +4,146 @@
  */
 
 export interface paths {
+    "/api/v1/management/break-glass-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active time-boxed break-glass grants optionally filtered by SuperAdmin or project. */
+        get: operations["BreakGlassAccess_ListGrants"];
+        put?: never;
+        /** Issue a time-boxed audited break-glass access grant into a tenant project. */
+        post: operations["BreakGlassAccess_GrantAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/management/break-glass-grants/{grantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a single break-glass grant by ID along with its current ETag. */
+        get: operations["BreakGlassAccess_GetById"];
+        put?: never;
+        post?: never;
+        /** Revoke an active break-glass grant immediately with optimistic concurrency. */
+        delete: operations["BreakGlassAccess_RevokeAccess"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/management/fonts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List system-wide fonts (and optionally tenant-scoped fonts when projectId is specified). */
+        get: operations["PlatformFonts_ListFonts"];
+        put?: never;
+        /** Register a platform-wide system font in control-plane storage. Max 8 MB. */
+        post: operations["PlatformFonts_RegisterFont"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/management/projects/{projectId}/quota": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retrieve effective operational quota limits for a tenant project. */
+        get: operations["ProjectQuotas_GetQuota"];
+        /** Create or update operational quota limits for a tenant project with optimistic concurrency. */
+        put: operations["ProjectQuotas_UpsertQuota"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/management/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all tenant projects across the platform in Control Plane metadata scope. */
+        get: operations["TenantProjects_ListAllTenants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/management/projects/{projectId}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate a suspended tenant project. */
+        post: operations["TenantProjects_ActivateProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/management/projects/{projectId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate (suspend) a tenant project immediately. */
+        post: operations["TenantProjects_DeactivateProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/management/projects/{projectId}/egress-cidrs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update approved outbound private/RFC-1918 egress CIDRs for a tenant project. */
+        put: operations["TenantProjects_UpdateEgressCidrs"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/logs": {
         parameters: {
             query?: never;
@@ -106,6 +246,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a document synchronously from a published template slug and input JSON payload. */
+        post: operations["DocumentGeneration_CreateDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/generate/{slug}": {
         parameters: {
             query?: never;
@@ -115,7 +272,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Track 1: Synchronous document generation from template slug and input JSON data. */
+        /**
+         * Track 1 (Legacy): Synchronous document generation from template slug and input JSON data. Use POST /api/v1/documents instead.
+         * @deprecated
+         */
         post: operations["DocumentGeneration_Generate"];
         delete?: never;
         options?: never;
@@ -132,7 +292,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Track 2: Asynchronous document generation queue for high-volume enterprise batches (HTTP 202). */
+        /**
+         * Track 2 (Legacy): Asynchronous document generation queue (HTTP 202). Use POST /api/v1/document-jobs instead.
+         * @deprecated
+         */
         post: operations["DocumentGeneration_GenerateAsync"];
         delete?: never;
         options?: never;
@@ -147,7 +310,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Track 2: Observability &amp; Polling endpoint to check status of an asynchronous document job. */
+        /**
+         * Track 2 (Legacy): Polling endpoint to check status of an asynchronous document job. Use GET /api/v1/document-jobs/{jobId} instead.
+         * @deprecated
+         */
         get: operations["DocumentGeneration_GetJobStatus"];
         put?: never;
         post?: never;
@@ -242,6 +408,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/document-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List document jobs for the active project using keyset cursor pagination. */
+        get: operations["DocumentJobs_ListJobs"];
+        put?: never;
+        /** Create an asynchronous Pipeline C document rendering job (single or batch). */
+        post: operations["DocumentJobs_CreateJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-jobs/{jobId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the current status and version metadata of a document job. */
+        get: operations["DocumentJobs_GetJobById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-jobs/{jobId}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream the rendered document or batch ZIP bundle for a completed job. */
+        get: operations["DocumentJobs_DownloadResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-jobs/{jobId}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List per-item execution status entries belonging to a document job. */
+        get: operations["DocumentJobs_ListJobItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-jobs/{jobId}:cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request cancellation of a queued or running document job with optimistic concurrency. */
+        post: operations["DocumentJobs_CancelJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-jobs/{jobId}:retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-queue a failed or canceled document job for another attempt with optimistic concurrency. */
+        post: operations["DocumentJobs_RetryJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-connections/{id}/connectivity-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check reachability and credentials for an already-saved database connection. */
+        post: operations["DataConnectionDiagnostics_CheckSavedConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-connections/connectivity-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check reachability and credentials for a supplied connection specification. */
+        post: operations["DataConnectionDiagnostics_CheckConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/data-connections/test": {
         parameters: {
             query?: never;
@@ -251,7 +554,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Test connection credentials and reachability. */
+        /**
+         * Legacy connectivity check alias. Use POST /api/v1/data-connections/connectivity-checks instead.
+         * @deprecated
+         */
         post: operations["DataConnectionDiagnostics_TestConnection"];
         delete?: never;
         options?: never;
@@ -375,7 +681,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get a single API sub-key by ID for the current project along with its current ETag. */
+        get: operations["ApiKeys_GetById"];
         put?: never;
         post?: never;
         /** Revoke a sub-key belonging to the current project (Self-service key rotation). */
@@ -436,6 +743,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List projects accessible to the authenticated portal user. */
+        get: operations["PortalProjects_ListAccessibleProjects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/management/projects/{projectId}/api-keys": {
         parameters: {
             query?: never;
@@ -461,7 +785,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get a single API key for the specified project along with its current ETag. SuperAdmin only. */
+        get: operations["ProjectApiKeys_GetById"];
         put?: never;
         post?: never;
         /** Revoke an API key belonging to the specified project. SuperAdmin only. */
@@ -478,7 +803,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List all projects accessible to the authenticated user with server-side pagination and search. */
+        /**
+         * List all projects accessible to the authenticated user with server-side pagination and search (deprecated: use GET /api/v1/portal/projects).
+         * @deprecated
+         */
         get: operations["Projects_ListProjects"];
         put?: never;
         /** Create a new project. SuperAdmin only. */
@@ -541,6 +869,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a single user's membership in the active project along with its current ETag. */
+        get: operations["ProjectUsers_GetById"];
+        put?: never;
+        post?: never;
+        /** Remove a user from the active project. */
+        delete: operations["ProjectUsers_Remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{userId}/role": {
         parameters: {
             query?: never;
@@ -558,18 +904,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/users/{userId}": {
+    "/api/v1/management/users/{userId}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get a global user account by ID along with its current ETag. SuperAdmin only. */
+        get: operations["UserManagement_GetById"];
         put?: never;
         post?: never;
-        /** Remove a user from the active project. */
-        delete: operations["ProjectUsers_Remove"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -605,7 +951,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Activate or deactivate a global user account. SuperAdmin only. */
+        /**
+         * Activate or deactivate a global user account. SuperAdmin only.
+         * @deprecated
+         */
         patch: operations["UserManagement_SetStatus"];
         trace?: never;
     };
@@ -634,10 +983,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List all available fonts for the active project (legacy flat list). */
+        /**
+         * List all available fonts for the active project (legacy flat list).
+         * @deprecated
+         */
         get: operations["FontManagement_ListFonts_ManagementSettingsFonts"];
         put?: never;
-        /** Upload a new font file (.ttf, .otf, .woff, .woff2). Max 8 MB. Author or Admin role required. */
+        /**
+         * Upload a new font file (.ttf, .otf, .woff, .woff2). Max 8 MB. Author or Admin role required.
+         * @deprecated
+         */
         post: operations["FontManagement_UploadFont_ManagementSettingsFonts"];
         delete?: never;
         options?: never;
@@ -669,7 +1024,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get dual-source font catalog (Google Fonts + MinIO Custom Fonts). */
+        /**
+         * Get dual-source font catalog (Google Fonts + MinIO Custom Fonts).
+         * @deprecated
+         */
         get: operations["FontManagement_GetCatalog_ManagementSettingsFontsCatalog"];
         put?: never;
         post?: never;
@@ -1038,7 +1396,7 @@ export interface components {
             slug: string;
             role: string;
         };
-        /** @description Result DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters. */
+        /** @description Result DTO representing an API Key record. MaskedKey exposes only the key prefix and trailing characters. */
         ApiKeyResultDto: {
             /** Format: uuid */
             id: string;
@@ -1053,7 +1411,20 @@ export interface components {
             scope: string;
             /** @default  */
             maskedKey: string;
-            concurrencyToken?: null | string;
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfApiKeyResultDto: {
+            data: null | components["schemas"]["ApiKeyResultDto"];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfBreakGlassGrantResultDto: {
+            data: null | components["schemas"]["BreakGlassGrantResultDto"];
         };
         /**
          * @description Standard API Response wrapper for successful requests that return data.
@@ -1096,6 +1467,20 @@ export interface components {
          */
         ApiResponseOfDocumentJobDto: {
             data: null | components["schemas"]["DocumentJobDto"];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfDocumentJobListResult: {
+            data: null | components["schemas"]["DocumentJobListResult"];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfDocumentJobResultDto: {
+            data: null | components["schemas"]["DocumentJobResultDto"];
         };
         /**
          * @description Standard API Response wrapper for successful requests that return data.
@@ -1192,6 +1577,27 @@ export interface components {
          * @description Standard API Response wrapper for successful requests that return data.
          *     Enforces the "Envelope Pattern" for consistent JSON schemas.
          */
+        ApiResponseOfIReadOnlyListOfBreakGlassGrantResultDto: {
+            data: null | components["schemas"]["BreakGlassGrantResultDto"][];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfIReadOnlyListOfDocumentJobItemDto: {
+            data: null | components["schemas"]["DocumentJobItemDto"][];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfIReadOnlyListOfPlatformFontResultDto: {
+            data: null | components["schemas"]["PlatformFontResultDto"][];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
         ApiResponseOfLoginResultDto: {
             data: null | components["schemas"]["LoginResultDto"];
         };
@@ -1215,6 +1621,27 @@ export interface components {
          */
         ApiResponseOfParseDraftResultDto: {
             data: null | components["schemas"]["ParseDraftResultDto"];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfPlatformFontResultDto: {
+            data: null | components["schemas"]["PlatformFontResultDto"];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfProjectControlPlaneResultDto: {
+            data: null | components["schemas"]["ProjectControlPlaneResultDto"];
+        };
+        /**
+         * @description Standard API Response wrapper for successful requests that return data.
+         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
+         */
+        ApiResponseOfProjectQuotaResultDto: {
+            data: null | components["schemas"]["ProjectQuotaResultDto"];
         };
         /**
          * @description Standard API Response wrapper for successful requests that return data.
@@ -1320,6 +1747,24 @@ export interface components {
             /** Format: int32 */
             generationCount: number;
         };
+        BreakGlassGrantResultDto: {
+            /** Format: uuid */
+            grantId: string;
+            /** Format: uuid */
+            targetProjectId: string;
+            /** Format: uuid */
+            superAdminUserId: string;
+            /** Format: uuid */
+            grantedByUserId: string;
+            reason: string;
+            /** Format: date-time */
+            grantedAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            revokedAt: null | string;
+            isActive: boolean;
+        };
         /** @description HTTP request contract for committing an uploaded template draft. */
         CommitDraftRequest: {
             name: string;
@@ -1369,6 +1814,39 @@ export interface components {
             /** Format: int32 */
             cacheSeconds?: null | number;
         };
+        /** @description Single document render payload entry within an asynchronous Pipeline C document job. */
+        CreateDocumentJobItemRequest: {
+            payload: components["schemas"]["JsonElement"];
+            documentRef?: null | string;
+        };
+        /**
+         * @description HTTP request contract for submitting an asynchronous single or batch Pipeline C rendering job.
+         *     Accepts either IReadOnlyList&lt;CreateDocumentJobItemRequest&gt;? CreateDocumentJobRequest.Items for batch jobs or JsonElement? CreateDocumentJobRequest.Payload for single-document convenience.
+         */
+        CreateDocumentJobRequest: {
+            slug: string;
+            items?: null | components["schemas"]["CreateDocumentJobItemRequest"][];
+            payload?: unknown;
+            /** @default pdf */
+            outputFormat: string;
+            documentRef?: null | string;
+            /**
+             * Format: int32
+             * @default 3
+             */
+            maxAttempts: number;
+            webhookUrl?: null | string;
+        };
+        /** @description HTTP request contract for synchronous document creation (`POST /api/v1/documents`). */
+        CreateDocumentRequest: {
+            slug: string;
+            payload: components["schemas"]["JsonElement"];
+            /** @default pdf */
+            outputFormat: string;
+            documentRef?: null | string;
+            changeNote?: null | string;
+            skipValidation?: null | boolean;
+        };
         CreateProjectRequest: {
             name: string;
             slug: string;
@@ -1397,7 +1875,6 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: null | string;
-            concurrencyToken?: null | string;
         };
         /** @description Schema metadata for a single column discovered from query execution. */
         DatasetColumnSchemaDto: {
@@ -1422,9 +1899,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: null | string;
-            concurrencyToken?: null | string;
         };
-        /** @description DTO representing the state of an asynchronous document generation job. */
+        /** @description Legacy DTO representing the state of an asynchronous document generation job (preserved for Phase 4 A1 coexistence). */
         DocumentJobDto: {
             /** Format: uuid */
             jobId: string;
@@ -1439,6 +1915,62 @@ export interface components {
             error: null | string;
             result: null | components["schemas"]["GenerateDocumentResultDto"];
             checkStatusUrl: null | string;
+            downloadUrl: null | string;
+        };
+        DocumentJobItemDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int32 */
+            itemIndex: number;
+            documentRef: null | string;
+            status: string;
+            /** Format: uuid */
+            generationLogId: null | string;
+            outputStorageKey: null | string;
+            errorCode: null | string;
+            errorMessage: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: null | string;
+        };
+        DocumentJobListResult: {
+            items: components["schemas"]["DocumentJobResultDto"][];
+            nextCursor: null | string;
+            hasMore: boolean;
+        };
+        /** @description Canonical Pipeline C document job projection implementing optimistic concurrency versioning (IHasVersion). */
+        DocumentJobResultDto: {
+            /** Format: uuid */
+            jobId: string;
+            templateSlug: string;
+            /** Format: uuid */
+            templateId: string;
+            /** Format: uuid */
+            templateVersionId: null | string;
+            status: string;
+            outputFormat: string;
+            /** Format: int32 */
+            attempt: number;
+            /** Format: int32 */
+            maxAttempts: number;
+            cancelRequested: boolean;
+            /** Format: int32 */
+            totalItems: number;
+            /** Format: int32 */
+            succeededItems: number;
+            /** Format: int32 */
+            failedItems: number;
+            /** Format: uuid */
+            resultGenerationLogId: null | string;
+            errorCode: null | string;
+            errorMessage: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            startedAt: null | string;
+            /** Format: date-time */
+            completedAt: null | string;
             downloadUrl: null | string;
         };
         /** @description DTO representing an immutable document version in the legal audit trail. */
@@ -1527,7 +2059,7 @@ export interface components {
         };
         /** @enum {unknown} */
         FontSource: "googleFonts" | "minIO" | "system";
-        /** @description HTTP request contract for document generation. */
+        /** @description HTTP request contract for legacy slug-scoped document generation. */
         GenerateDocumentRequest: {
             payload: components["schemas"]["JsonElement"];
             /** @default pdf */
@@ -1572,6 +2104,19 @@ export interface components {
             errorMsg: null | string;
             /** Format: date-time */
             createdAt: string;
+        };
+        /** @description Control-plane request to grant time-boxed break-glass access for a SuperAdmin into a tenant project. */
+        GrantBreakGlassAccessRequest: {
+            /** Format: uuid */
+            targetProjectId: string;
+            reason: string;
+            /** Format: uuid */
+            superAdminUserId?: null | string;
+            /**
+             * Format: int32
+             * @default 60
+             */
+            durationMinutes: null | number;
         };
         /** Format: binary */
         IFormFile: string;
@@ -1669,6 +2214,21 @@ export interface components {
         };
         /** @enum {unknown} */
         PlaceholderCategory: "scalar" | "tabular" | "object" | "system";
+        PlatformFontResultDto: {
+            /** Format: uuid */
+            id: string;
+            familyName: string;
+            weight: string;
+            style: string;
+            format: string;
+            storageKey: string;
+            checksumSha256: string;
+            isSystemFont: boolean;
+            /** Format: uuid */
+            projectId: null | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         /** @description HTTP request contract for ephemeral document preview. */
         PreviewDocumentRequest: {
             payload: components["schemas"]["JsonElement"];
@@ -1710,6 +2270,41 @@ export interface components {
                 message: string;
             }[];
         };
+        ProjectControlPlaneResultDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            companyId: string;
+            name: string;
+            slug: string;
+            isActive: boolean;
+            allowedEgressCidrs: string[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: null | string;
+        };
+        ProjectQuotaResultDto: {
+            /** Format: uuid */
+            quotaId: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: int32 */
+            maxRequestsPerMinute: number;
+            /** Format: int32 */
+            maxConcurrentJobs: number;
+            /** Format: int32 */
+            maxBatchItems: number;
+            /** Format: int64 */
+            maxStorageBytes: number;
+            /** Format: int32 */
+            maxActiveApiKeys: number;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: null | string;
+        };
         /** @description DTO representing project details. */
         ProjectResultDto: {
             /** Format: uuid */
@@ -1721,7 +2316,6 @@ export interface components {
             createdAt: string;
             readApiKey?: null | string;
             writeApiKey?: null | string;
-            concurrencyToken?: null | string;
         };
         /** @description Request payload for renewing access tokens using a refresh token. */
         RefreshTokenRequest: {
@@ -1893,7 +2487,6 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: null | string;
-            concurrencyToken?: null | string;
         };
         /** @description Schema contract DTO for external API consumers and form builders. */
         TemplateSchemaDto: {
@@ -1983,6 +2576,10 @@ export interface components {
             /** Format: int32 */
             cacheSeconds?: null | number;
         };
+        /** @description Control-plane request to update tenant-approved outbound egress CIDRs for SQL connections and webhooks. */
+        UpdateProjectEgressCidrsRequest: {
+            allowedCidrs: string[];
+        };
         /** @description HTTP request contract for updating template metadata. */
         UpdateTemplateMetadataRequest: {
             name: null | string;
@@ -1996,6 +2593,21 @@ export interface components {
         UploadFontResultDto: {
             message: string;
             fontName: string;
+        };
+        /** @description Control-plane request to create or update per-project operational quotas. */
+        UpsertProjectQuotaRequest: {
+            /** Format: int32 */
+            maxRequestsPerMinute: number;
+            /** Format: int32 */
+            maxConcurrentJobs: number;
+            /** Format: int32 */
+            maxBatchItems: number;
+            /** Format: int64 */
+            maxStorageBytes: number;
+            /** Format: int32 */
+            maxActiveApiKeys: number;
+            /** @default true */
+            isActive: boolean;
         };
         /** @description Result DTO representing the identity and profile information of an authenticated user. */
         UserProfileResultDto: {
@@ -2017,7 +2629,6 @@ export interface components {
             isActive: boolean;
             /** Format: date-time */
             createdAt: string;
-            concurrencyToken?: null | string;
         };
         ValidateHtmlRequest: {
             html: string;
@@ -2062,6 +2673,1065 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    BreakGlassAccess_ListGrants: {
+        parameters: {
+            query?: {
+                superAdminUserId?: string;
+                targetProjectId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfIReadOnlyListOfBreakGlassGrantResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    BreakGlassAccess_GrantAccess: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantBreakGlassAccessRequest"];
+                "text/json": components["schemas"]["GrantBreakGlassAccessRequest"];
+                "application/*+json": components["schemas"]["GrantBreakGlassAccessRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfBreakGlassGrantResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    BreakGlassAccess_GetById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfBreakGlassGrantResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    BreakGlassAccess_RevokeAccess: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+            };
+            path: {
+                grantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PlatformFonts_ListFonts: {
+        parameters: {
+            query?: {
+                projectId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfIReadOnlyListOfPlatformFontResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PlatformFonts_RegisterFont: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    file?: components["schemas"]["IFormFile"];
+                } & {
+                    familyName?: string;
+                } & {
+                    /** @default normal */
+                    weight?: string;
+                } & {
+                    /** @default normal */
+                    style?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfPlatformFontResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ProjectQuotas_GetQuota: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfProjectQuotaResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ProjectQuotas_UpsertQuota: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertProjectQuotaRequest"];
+                "text/json": components["schemas"]["UpsertProjectQuotaRequest"];
+                "application/*+json": components["schemas"]["UpsertProjectQuotaRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfProjectQuotaResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TenantProjects_ListAllTenants: {
+        parameters: {
+            query?: {
+                search?: string;
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedApiResponseOfProjectResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TenantProjects_ActivateProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfProjectControlPlaneResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TenantProjects_DeactivateProject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfProjectControlPlaneResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    TenantProjects_UpdateEgressCidrs: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+            };
+            path: {
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProjectEgressCidrsRequest"];
+                "text/json": components["schemas"]["UpdateProjectEgressCidrsRequest"];
+                "application/*+json": components["schemas"]["UpdateProjectEgressCidrsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfProjectControlPlaneResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     AuditLog_ListLogs: {
         parameters: {
             query?: {
@@ -2489,6 +4159,91 @@ export interface operations {
                 };
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DocumentGeneration_CreateDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+                /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDocumentRequest"];
+                "text/json": components["schemas"]["CreateDocumentRequest"];
+                "application/*+json": components["schemas"]["CreateDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfGenerateDocumentResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized - missing or invalid credentials. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden - authenticated but not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3138,6 +4893,820 @@ export interface operations {
             };
         };
     };
+    DocumentJobs_ListJobs: {
+        parameters: {
+            query?: {
+                status?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfDocumentJobListResult"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DocumentJobs_CreateJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+                /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDocumentJobRequest"];
+                "text/json": components["schemas"]["CreateDocumentJobRequest"];
+                "application/*+json": components["schemas"]["CreateDocumentJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfDocumentJobResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DocumentJobs_GetJobById: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfDocumentJobResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DocumentJobs_DownloadResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DocumentJobs_ListJobItems: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfIReadOnlyListOfDocumentJobItemDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DocumentJobs_CancelJob: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfDocumentJobResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DocumentJobs_RetryJob: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path: {
+                jobId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfDocumentJobResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DataConnectionDiagnostics_CheckSavedConnection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfTestDataConnectionResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DataConnectionDiagnostics_CheckConnection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestDataConnectionRequest"];
+                "text/json": components["schemas"]["TestDataConnectionRequest"];
+                "application/*+json": components["schemas"]["TestDataConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfTestDataConnectionResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     DataConnectionDiagnostics_TestConnection: {
         parameters: {
             query?: never;
@@ -3312,6 +5881,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3391,7 +5962,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -3458,11 +6029,11 @@ export interface operations {
     DataConnections_Update: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -3480,7 +6051,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -3542,6 +6113,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -3565,11 +6145,11 @@ export interface operations {
     DataConnections_Delete: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -3623,6 +6203,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3824,6 +6413,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3894,7 +6485,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -3961,11 +6552,11 @@ export interface operations {
     Datasets_Update: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -3983,7 +6574,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -4036,6 +6627,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -4059,11 +6659,11 @@ export interface operations {
     Datasets_Delete: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -4117,6 +6717,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4235,6 +6844,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4306,14 +6917,95 @@ export interface operations {
             };
         };
     };
-    ApiKeys_RevokeKey: {
+    ApiKeys_GetById: {
         parameters: {
             query?: never;
             header?: {
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfApiKeyResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ApiKeys_RevokeKey: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
             };
             path: {
                 id: string;
@@ -4367,6 +7059,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4603,6 +7304,75 @@ export interface operations {
             };
         };
     };
+    PortalProjects_ListAccessibleProjects: {
+        parameters: {
+            query?: {
+                search?: string;
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedApiResponseOfProjectResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden - authenticated but not permitted. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     ProjectApiKeys_ListKeys: {
         parameters: {
             query?: never;
@@ -4693,6 +7463,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4764,12 +7536,91 @@ export interface operations {
             };
         };
     };
+    ProjectApiKeys_GetById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: string;
+                keyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfApiKeyResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     ProjectApiKeys_RevokeKey: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
             };
             path: {
                 projectId: string;
@@ -4824,6 +7675,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4941,6 +7801,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5026,7 +7888,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -5093,9 +7955,9 @@ export interface operations {
     Projects_TransferOwner: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
             };
             path: {
                 projectId: string;
@@ -5164,6 +8026,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5282,6 +8153,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5353,46 +8226,29 @@ export interface operations {
             };
         };
     };
-    ProjectUsers_UpdateRole: {
+    ProjectUsers_GetById: {
         parameters: {
             query?: never;
             header?: {
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 userId: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateUserRoleRequest"];
-                "text/json": components["schemas"]["UpdateUserRoleRequest"];
-                "application/*+json": components["schemas"]["UpdateUserRoleRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiResponseOfUserResultDto"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unauthorized */
@@ -5415,24 +8271,6 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Precondition Failed */
-            412: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5472,11 +8310,11 @@ export interface operations {
     ProjectUsers_Remove: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 userId: string;
@@ -5555,6 +8393,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -5575,10 +8422,15 @@ export interface operations {
             };
         };
     };
-    UserManagement_SetStatus_ManagementUsersUserIdStatus: {
+    ProjectUsers_UpdateRole: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path: {
                 userId: string;
             };
@@ -5586,16 +8438,16 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SetUserStatusRequest"];
-                "text/json": components["schemas"]["SetUserStatusRequest"];
-                "application/*+json": components["schemas"]["SetUserStatusRequest"];
+                "application/json": components["schemas"]["UpdateUserRoleRequest"];
+                "text/json": components["schemas"]["UpdateUserRoleRequest"];
+                "application/*+json": components["schemas"]["UpdateUserRoleRequest"];
             };
         };
         responses: {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -5639,8 +8491,227 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UserManagement_GetById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfUserResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Internal Server Error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UserManagement_SetStatus_ManagementUsersUserIdStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
+            };
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserStatusRequest"];
+                "text/json": components["schemas"]["SetUserStatusRequest"];
+                "application/*+json": components["schemas"]["SetUserStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiResponseOfUserResultDto"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Entity - semantic or schema validation failed. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5671,7 +8742,9 @@ export interface operations {
     UserManagement_SetStatus: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
             };
@@ -5691,7 +8764,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -5735,8 +8808,26 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5920,7 +9011,10 @@ export interface operations {
     FontManagement_ListFonts_ManagementSettingsFonts: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -5986,6 +9080,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
                 /** @description Client-generated unique key making retries safe. Completed responses are replayed for 24 hours. */
                 "Idempotency-Key"?: string;
             };
@@ -6136,7 +9232,10 @@ export interface operations {
     FontManagement_GetCatalog_ManagementSettingsFontsCatalog: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
+                "Project-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -6584,11 +9683,11 @@ export interface operations {
     TemplateDataset_SaveDatasets: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -6606,7 +9705,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -6661,6 +9760,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7064,6 +10172,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7152,7 +10262,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -7219,11 +10329,11 @@ export interface operations {
     TemplateLifecycle_UpdateMetadata: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -7241,7 +10351,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -7303,6 +10413,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Precondition Required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Too Many Requests - rate limit exceeded (see Retry-After header). */
             429: {
                 headers: {
@@ -7326,11 +10445,11 @@ export interface operations {
     TemplateLifecycle_Deactivate: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -7384,6 +10503,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7484,11 +10612,11 @@ export interface operations {
     TemplateMapping_SaveMappings: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -7506,7 +10634,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -7561,6 +10689,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7737,11 +10874,11 @@ export interface operations {
     TemplateStudio_SaveHtml: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
-                /** @description Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check. */
-                "If-Match"?: string;
             };
             path: {
                 id: string;
@@ -7759,7 +10896,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt). */
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
                     ETag?: string;
                     [name: string]: unknown;
                 };
@@ -7796,6 +10933,15 @@ export interface operations {
             };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7840,6 +10986,8 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -7910,6 +11058,8 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8182,7 +11332,9 @@ export interface operations {
     TemplateVersion_RollbackVersion: {
         parameters: {
             query?: never;
-            header?: {
+            header: {
+                /** @description Optimistic concurrency version token (strong ETag in "v{version}" format returned by prior read). */
+                "If-Match": string;
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
                 "Project-Id"?: string;
             };
@@ -8197,6 +11349,8 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
+                    /** @description Updated resource concurrency version token (strong ETag in "v{version}" format). */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -8221,8 +11375,26 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            /** @description Precondition Failed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             /** @description Unprocessable Entity - semantic or schema validation failed. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Precondition Required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -3,18 +3,20 @@
 import React from 'react';
 import { ShieldOff } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { hasRole } from '@/lib/rbac';
-import type { UserRole } from '@/types/api';
+import { hasRole, isSuperAdmin as checkSuperAdmin } from '@/lib/rbac';
+import type { UserRole } from '@/constants/domain';
 
 interface RequireRoleProps {
-  /** Minimum role required — enforced against UserRole union */
-  role: UserRole;
+  /** Minimum project role required — enforced against UserRole union */
+  role?: UserRole;
+  /** Require platform-wide SystemRole.SuperAdmin */
+  superAdminOnly?: boolean;
   children: React.ReactNode;
   /** Custom fallback — defaults to AccessDenied card */
   fallback?: React.ReactNode;
 }
 
-function AccessDenied() {
+function AccessDenied({ message }: { message?: string }) {
   return (
     <div className="flex h-full items-center justify-center pt-20">
       <div className="text-center space-y-3">
@@ -23,17 +25,34 @@ function AccessDenied() {
         </div>
         <div className="space-y-1">
           <h3 className="text-sm font-semibold text-textPrimary">ไม่มีสิทธิ์เข้าถึง</h3>
-          <p className="text-xs text-textMuted">บัญชีของคุณไม่มีสิทธิ์ดูหน้านี้</p>
+          <p className="text-xs text-textMuted">
+            {message || 'บัญชีของคุณไม่มีสิทธิ์ดูหน้านี้'}
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-export function RequireRole({ role, children, fallback }: RequireRoleProps) {
-  const { role: userRole } = useAuthContext();
+export function RequireRole({
+  role = 'Viewer',
+  superAdminOnly = false,
+  children,
+  fallback,
+}: RequireRoleProps) {
+  const { role: userRole, systemRole } = useAuthContext();
 
-  if (!hasRole(userRole, role)) {
+  if (superAdminOnly && !checkSuperAdmin(systemRole)) {
+    return (
+      <>
+        {fallback ?? (
+          <AccessDenied message="หน้านี้จำกัดเฉพาะผู้ดูแลแพลตฟอร์มระดับ SuperAdmin เท่านั้น" />
+        )}
+      </>
+    );
+  }
+
+  if (!superAdminOnly && !hasRole(userRole, role)) {
     return <>{fallback ?? <AccessDenied />}</>;
   }
 

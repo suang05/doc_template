@@ -7,6 +7,7 @@ namespace SmkDoc.Domain.Interfaces;
 public interface IApiKeyRepository
 {
     Task<ApiKey?> GetByIdAsync(ApiKeyId id, ProjectId projectId, CancellationToken ct);
+    Task<ApiKey?> GetForCurrentProjectAsync(ApiKeyId id, CancellationToken ct);
     Task<ApiKey?> GetByIdWithoutProjectAsync(ApiKeyId id, CancellationToken ct);
 
     /// <summary>Returns the active key matching the hash, or null.</summary>

@@ -16,3 +16,5 @@ export * from './Dropdown';
 export * from './PdfPreviewPanel';
 export * from './Pill';
 export * from './PageHeader';
+export * from './ConflictBanner';
+export * from './RequireRole';

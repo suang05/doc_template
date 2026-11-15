@@ -2,6 +2,7 @@ import NextAuth, { type Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { JWT } from 'next-auth/jwt';
 import { decodeBackendJwt, jwtRole, jwtGivenName, jwtFamilyName, shouldRefreshBackendToken } from '@/lib/auth/jwt';
+import { rotateBackendRefreshToken } from '@/lib/auth/refreshCoordinator';
 
 // Server-only — never exposed to the browser. Falls back to the public URL for local dev
 // where the Next.js server and the backend both resolve `localhost` the same way.
@@ -26,13 +27,6 @@ interface BackendLoginData {
   defaultProjectId?: string | null;
   activeProjectId?: string | null;
   activeRole?: string | null;
-}
-
-interface BackendRefreshData {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn?: number;
-  tokenType?: string;
 }
 
 interface BackendApiResponse<T> {
@@ -79,41 +73,16 @@ async function refreshBackendToken(token: JWT): Promise<JWT> {
   }
 
   try {
-    const res = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: token.refreshToken }),
-    }).catch(() => null);
-
-    if (!res || !res.ok) {
-      return { ...token, error: 'RefreshAccessTokenError' };
-    }
-
-    const json = (await res.json()) as BackendApiResponse<BackendRefreshData> & {
-      accessToken?: string;
-      refreshToken?: string;
-      expiresIn?: number;
-    };
-
-    const data = json.data;
-    const newAccessToken = data?.accessToken || json.accessToken;
-    const newRefreshToken = data?.refreshToken || json.refreshToken || token.refreshToken;
-    const expiresIn = data?.expiresIn || json.expiresIn || 900;
-
-    if (!newAccessToken) {
-      return { ...token, error: 'RefreshAccessTokenError' };
-    }
-
-    const payload = decodeBackendJwt(newAccessToken);
+    const rotated = await rotateBackendRefreshToken(token.refreshToken);
 
     return {
       ...token,
-      backendToken: newAccessToken,
-      refreshToken: newRefreshToken,
-      backendTokenExp: payload?.exp ?? Math.floor(Date.now() / 1000) + expiresIn,
-      role: payload ? (jwtRole(payload) ?? token.role) : token.role,
-      systemRole: payload?.SystemRole ?? token.systemRole,
-      projectId: payload?.ProjectId ?? token.projectId,
+      backendToken: rotated.accessToken,
+      refreshToken: rotated.refreshToken,
+      backendTokenExp: rotated.exp,
+      role: rotated.role ?? token.role,
+      systemRole: rotated.systemRole ?? token.systemRole,
+      projectId: rotated.projectId ?? token.projectId,
       error: null,
     };
   } catch {

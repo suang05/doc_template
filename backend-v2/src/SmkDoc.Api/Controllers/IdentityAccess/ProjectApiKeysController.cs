@@ -10,6 +10,7 @@ using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.CreateApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Commands.RevokeApiKey;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
+using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.GetApiKeyById;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Queries.ListApiKeys;
 
 namespace SmkDoc.Api.Controllers.IdentityAccess;
@@ -26,6 +27,7 @@ namespace SmkDoc.Api.Controllers.IdentityAccess;
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public sealed class ProjectApiKeysController(
     IUseCase<ListApiKeysQuery, List<ApiKeyResultDto>> listApiKeysUseCase,
+    IUseCase<GetApiKeyByIdQuery, ApiKeyResultDto> getApiKeyByIdUseCase,
     IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto> createApiKeyUseCase,
     IUseCase<RevokeApiKeyCommand> revokeApiKeyUseCase) : ControllerBase
 {
@@ -39,6 +41,20 @@ public sealed class ProjectApiKeysController(
         var query = new ListApiKeysQuery(projectId);
         var result = await listApiKeysUseCase.ExecuteAsync(query, ct);
         return Ok(new ApiResponse<IEnumerable<ApiKeyResultDto>>(result));
+    }
+
+    /// <summary>Get a single API key for the specified project along with its current ETag. SuperAdmin only.</summary>
+    [HttpGet("{keyId:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<ApiKeyResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(
+        [FromRoute] Guid projectId,
+        [FromRoute] Guid keyId,
+        CancellationToken ct)
+    {
+        var query = new GetApiKeyByIdQuery(keyId, projectId);
+        var result = await getApiKeyByIdUseCase.ExecuteAsync(query, ct);
+        return Ok(new ApiResponse<ApiKeyResultDto>(result));
     }
 
     /// <summary>Issue a new API key for the specified project (Quota: Max 2 active keys). SuperAdmin only.</summary>

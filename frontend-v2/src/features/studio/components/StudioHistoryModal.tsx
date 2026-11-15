@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal } from '@/components/ui';
-import { TemplateVersionDto } from '@/types/api';
+import type { TemplateVersionDto } from '@/lib/api/types';
 
 export interface StudioHistoryModalProps {
   isOpen: boolean;

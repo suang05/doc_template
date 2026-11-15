@@ -1,15 +1,16 @@
 import { z } from 'zod';
+import { outputFormats, type OutputFormat } from '@/constants/domain';
 
-export const OutputFormatSchema = z.enum(['pdf', 'docx', 'xlsx']);
-export type OutputFormat = z.infer<typeof OutputFormatSchema>;
+export { type OutputFormat };
+export const OutputFormatSchema = z.enum(outputFormats);
 
 export const GenerateDocumentRequestSchema = z.object({
-  payload: z.record(z.any()).default({}),
+  payload: z.record(z.string(), z.unknown()).default({}),
   outputFormat: OutputFormatSchema.default('pdf'),
   documentRef: z.string().optional().nullable(),
   changeNote: z.string().optional().nullable(),
 });
-export type GenerateDocumentRequest = z.infer<typeof GenerateDocumentRequestSchema>;
+export type GenerateDocumentFormRequest = z.infer<typeof GenerateDocumentRequestSchema>;
 
 export const GenerateDocumentResponseSchema = z.object({
   generationId: z.string().uuid(),
@@ -17,13 +18,13 @@ export const GenerateDocumentResponseSchema = z.object({
   outputFormat: z.string(),
   fileSizeBytes: z.number().optional().default(0),
   sha256: z.string().optional().default(''),
-  url: z.string().url(),
+  url: z.string().min(1),
   expiresAt: z.string(),
 });
 export type GenerateDocumentResponse = z.infer<typeof GenerateDocumentResponseSchema>;
 
 export const PreviewDocumentRequestSchema = z.object({
-  payload: z.record(z.any()).default({}),
+  payload: z.record(z.string(), z.unknown()).default({}),
   html: z.string().optional().nullable(),
 });
 export type PreviewDocumentRequest = z.infer<typeof PreviewDocumentRequestSchema>;
@@ -39,32 +40,18 @@ export const DocumentVersionDtoSchema = z.object({
   createdBy: z.string().nullable().optional(),
   createdAt: z.string(),
 });
-export type DocumentVersionDto = z.infer<typeof DocumentVersionDtoSchema>;
+export type DocumentVersionRecord = z.infer<typeof DocumentVersionDtoSchema>;
 
 export const DocumentJobDtoSchema = z.object({
   jobId: z.string().uuid(),
   templateSlug: z.string(),
   status: z.string(),
-  enqueuedAt: z.string(),
+  outputFormat: z.string(),
+  createdAt: z.string(),
   startedAt: z.string().nullable().optional(),
   completedAt: z.string().nullable().optional(),
-  statusUrl: z.string(),
   downloadUrl: z.string().nullable().optional(),
   errorMessage: z.string().nullable().optional(),
   errorCode: z.string().nullable().optional(),
 });
-export type DocumentJobDto = z.infer<typeof DocumentJobDtoSchema>;
-
-/** Generic API response envelope — used by adapters that unwrap `data` fields. */
-export interface ApiResponse<T> {
-  data?: T;
-  error?: string;
-  success?: boolean;
-}
-
-/** Request shape for the stateless HTML-to-PDF render endpoint. */
-export interface RenderHtmlToPdfRequest {
-  htmlContent: string;
-  headerHtml?: string;
-  footerHtml?: string;
-}
+export type DocumentJobRecord = z.infer<typeof DocumentJobDtoSchema>;

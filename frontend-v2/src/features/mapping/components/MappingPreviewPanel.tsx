@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { type MappingRow, PT_MAP } from '../domain/mappingMapper';
 import { simulatePreview, type PreviewResult } from '../domain/previewSimulator';
-import type { DataSourceType } from '@/types/api';
+import type { DataSourceType } from '@/constants/domain';
 import { cn } from '@/utils/cn';
 
 const DEFAULT_SAMPLE = '{\n  "contractNo": "SMK-2026-001",\n  "customerName": "นายสมชาย ใจดี",\n  "payment": { "subtotal": 2500000 }\n}';
