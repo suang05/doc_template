@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.RegularExpressions;
 using SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
@@ -40,8 +39,8 @@ public sealed partial class ValidateTemplateHtmlUseCase(
         var fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var errors = new List<string>();
 
-        // 1. Scan Handlebars {{placeholders}} using SSoT TemplateScannerService
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(html));
+        // 1. Scan Handlebars {{placeholders}} using SSoT TemplateScannerService (HybridSpoolStream prevents LOH)
+        await using var stream = await Common.Streams.HybridSpoolStream.CreateFromUtf8StringAsync(html, ct: ct);
         var scannedPlaceholders = await scanner.ScanPlaceholdersAsync(stream, ".html", ct);
         foreach (var placeholder in scannedPlaceholders)
         {

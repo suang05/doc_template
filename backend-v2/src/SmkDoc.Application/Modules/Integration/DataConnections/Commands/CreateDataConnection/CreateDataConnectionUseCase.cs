@@ -38,6 +38,6 @@ public sealed class CreateDataConnectionUseCase(
             entity.Provider.Name,
             entity.CreatedAt,
             entity.UpdatedAt,
-            entity.GetConcurrencyToken());
+            entity.Version);
     }
 }

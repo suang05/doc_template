@@ -1,34 +1,28 @@
 using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
-using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.IdentityAccess.Projects.Queries.ListProjects;
 
 public sealed class ListProjectsUseCaseTests
 {
     private readonly IProjectQueryService _projectQueryService = Substitute.For<IProjectQueryService>();
-    private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
-    private ListProjectsUseCase CreateSut() => new(_projectQueryService, _userRepo);
+    private ListProjectsUseCase CreateSut() => new(_projectQueryService, _timeProvider);
 
     [Fact]
-    public async Task ExecuteAsync_WhenStandardUser_QueriesUserAssignedProjectsOnly()
+    public async Task ExecuteAsync_QueriesAccessibleProjectsWithCurrentTimestamp()
     {
         // Arrange
-        var now = TestConstants.BaselineTime;
+        var now = _timeProvider.GetUtcNow();
         var userId = Guid.NewGuid();
         var projectId = Guid.NewGuid();
-        User user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now);
         var projectDto = new ProjectResultDto(projectId, "Proj 1", "proj-1", true, now);
 
-        _userRepo.GetByIdAsync(new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(user);
-
-        _projectQueryService.ListPagedByUserAsync(
+        _projectQueryService.ListAccessiblePagedAsync(
                 new UserId(userId),
-                false,
+                now,
                 Arg.Any<string?>(),
                 1,
                 20,
@@ -44,59 +38,26 @@ public sealed class ListProjectsUseCaseTests
         result.Items.Should().HaveCount(1);
         result.Items[0].Id.Should().Be(projectId);
         result.Items[0].Name.Should().Be("Proj 1");
-    }
 
-    [Fact]
-    public async Task ExecuteAsync_WhenSuperAdmin_QueriesWithSuperAdminFlagTrue()
-    {
-        // Arrange
-        var now = TestConstants.BaselineTime;
-        var userId = Guid.NewGuid();
-        var projectId = Guid.NewGuid();
-        User user = UserBuilder.AUser().WithSystemRole(SystemRole.SuperAdmin).WithTime(now);
-        var projectDto = new ProjectResultDto(projectId, "Proj 1", "proj-1", true, now);
-
-        _userRepo.GetByIdAsync(new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(user);
-
-        _projectQueryService.ListPagedByUserAsync(
-                new UserId(userId),
-                true,
-                Arg.Any<string?>(),
-                1,
-                20,
-                Arg.Any<CancellationToken>())
-            .Returns(([projectDto], 1));
-
-        // Act
-        ProjectPagedResultDto result = await CreateSut().ExecuteAsync(new ListProjectsQuery(userId), CancellationToken.None);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.TotalCount.Should().Be(1);
-        await _projectQueryService.Received(1).ListPagedByUserAsync(
+        await _projectQueryService.Received(1).ListAccessiblePagedAsync(
             new UserId(userId),
-            true,
-            Arg.Any<string?>(),
+            now,
+            null,
             1,
             20,
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithSearchAndPaging_ForwardsParametersToRepository()
+    public async Task ExecuteAsync_WithSearchAndPaging_ForwardsParametersToQueryService()
     {
         // Arrange
-        var now = TestConstants.BaselineTime;
+        var now = _timeProvider.GetUtcNow();
         var userId = Guid.NewGuid();
-        User user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now);
 
-        _userRepo.GetByIdAsync(new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(user);
-
-        _projectQueryService.ListPagedByUserAsync(
+        _projectQueryService.ListAccessiblePagedAsync(
                 new UserId(userId),
-                false,
+                now,
                 "invoice",
                 2,
                 10,
@@ -125,15 +86,12 @@ public sealed class ListProjectsUseCaseTests
         int expectedPageSize)
     {
         // Arrange
-        var now = TestConstants.BaselineTime;
+        var now = _timeProvider.GetUtcNow();
         var userId = Guid.NewGuid();
-        User user = UserBuilder.AUser().WithSystemRole(SystemRole.Member).WithTime(now);
-        _userRepo.GetByIdAsync(new UserId(userId), Arg.Any<CancellationToken>())
-            .Returns(user);
 
-        _projectQueryService.ListPagedByUserAsync(
+        _projectQueryService.ListAccessiblePagedAsync(
                 new UserId(userId),
-                false,
+                now,
                 null,
                 expectedPage,
                 expectedPageSize,
@@ -147,9 +105,9 @@ public sealed class ListProjectsUseCaseTests
         // Assert
         result.Page.Should().Be(expectedPage);
         result.PageSize.Should().Be(expectedPageSize);
-        await _projectQueryService.Received(1).ListPagedByUserAsync(
+        await _projectQueryService.Received(1).ListAccessiblePagedAsync(
             new UserId(userId),
-            false,
+            now,
             null,
             expectedPage,
             expectedPageSize,

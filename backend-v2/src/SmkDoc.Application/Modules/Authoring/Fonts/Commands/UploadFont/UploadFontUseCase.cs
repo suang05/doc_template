@@ -6,7 +6,10 @@ namespace SmkDoc.Application.Modules.Authoring.Fonts.Commands.UploadFont;
 
 public sealed partial class UploadFontUseCase(
     IStorageService storageService,
-    ICurrentProjectContext projectContext) : IUseCase<UploadFontCommand, UploadFontResultDto>
+    ICurrentProjectContext projectContext,
+    IFontRepository fontRepository,
+    IUnitOfWork unitOfWork,
+    TimeProvider timeProvider) : IUseCase<UploadFontCommand, UploadFontResultDto>
 {
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -40,8 +43,7 @@ public sealed partial class UploadFontUseCase(
 
         string safeFileName = SanitizeAndValidateFileName(command.FileName);
 
-        using var buffer = new MemoryStream();
-        await command.Data.CopyToAsync(buffer, ct);
+        await using var buffer = await Common.Streams.HybridSpoolStream.SpoolFromAsync(command.Data, ct: ct);
         if (buffer.Length < 4)
         {
             throw new DomainValidationException("Font file is empty or truncated.");
@@ -49,7 +51,7 @@ public sealed partial class UploadFontUseCase(
 
         buffer.Position = 0;
         Span<byte> header = stackalloc byte[4];
-        _ = buffer.Read(header);
+        buffer.ReadExactly(header);
 
         if (!HasValidFontMagicHeader(header))
         {
@@ -57,8 +59,29 @@ public sealed partial class UploadFontUseCase(
         }
 
         buffer.Position = 0;
+        byte[] digestBytes = await System.Security.Cryptography.SHA256.HashDataAsync(buffer, ct);
+        var checksum = new Domain.ValueObjects.Sha256Hash(Convert.ToHexStringLower(digestBytes));
+
+        buffer.Position = 0;
         var objectKey = StorageBuckets.TenantFontKey(projectId, safeFileName);
         await storageService.UploadAsync(StorageBuckets.Fonts, objectKey, buffer, command.ContentType.Trim(), ct);
+
+        string familyName = Path.GetFileNameWithoutExtension(safeFileName);
+        string format = Path.GetExtension(safeFileName).TrimStart('.').ToUpperInvariant();
+        var now = timeProvider.GetUtcNow();
+        var font = Domain.TenantManagement.Font.Register(
+            familyName,
+            "normal",
+            "normal",
+            string.IsNullOrWhiteSpace(format) ? "TTF" : format,
+            objectKey,
+            checksum,
+            isSystemFont: false,
+            projectId,
+            now);
+        await fontRepository.AddAsync(font, ct);
+        await unitOfWork.CommitAsync(ct);
+
         return new UploadFontResultDto("Font uploaded successfully.", safeFileName);
     }
 

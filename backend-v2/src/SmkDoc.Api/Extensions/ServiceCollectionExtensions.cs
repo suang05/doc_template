@@ -1,10 +1,10 @@
-using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using SmkDoc.Api.Authentication;
 using SmkDoc.Api.Common.Responses;
@@ -72,7 +72,7 @@ public static class ServiceCollectionExtensions
         services.AddControllers(options =>
         {
             options.Filters.Add(new ProducesAttribute("application/json"));
-            options.Filters.AddService<ETagFilter>();
+            options.Filters.AddService<ETagResponseFilter>();
         }).AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
@@ -87,7 +87,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IdempotencyFilter>();
-        services.AddScoped<ETagFilter>();
+        services.AddScoped<ETagResponseFilter>();
         services.AddEndpointsApiExplorer();
     }
 
@@ -242,23 +242,89 @@ public static class ServiceCollectionExtensions
     {
         bool useRedis = RedisConfigurationResolver.ResolveConnectionString(configuration) is not null;
         string instancePrefix = RedisConfigurationResolver.ResolveInstancePrefix(configuration);
+        int globalLimit = Math.Max(1, configuration.GetValue("RateLimiting:Global:PermitLimit", 120));
+        int authStrictLimit = Math.Max(1, configuration.GetValue("RateLimiting:AuthStrict:PermitLimit", 5));
+        int apiLimit = Math.Max(1, configuration.GetValue("RateLimiting:Api:PermitLimit", 60));
+        int renderingConcurrency = Math.Max(1, configuration.GetValue("RateLimiting:Rendering:ConcurrencyLimit", 20));
+        int renderingQueue = Math.Max(0, configuration.GetValue("RateLimiting:Rendering:QueueLimit", 10));
+        int connectivityCheckLimit = Math.Max(1, configuration.GetValue("RateLimiting:ConnectivityCheck:PermitLimit", 10));
 
         services.AddRateLimiter(options =>
         {
-            options.AddPolicy("auth-strict", context =>
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
             {
-                var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                return RateLimitPartition.GetFixedWindowLimiter(ip, _ => CreateFixedWindowOptions(5));
+                var path = httpContext.Request.Path;
+                if (path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWithSegments("/scalar", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWithSegments("/openapi", StringComparison.OrdinalIgnoreCase) ||
+                    path.StartsWithSegments("/swagger", StringComparison.OrdinalIgnoreCase))
+                {
+                    return RateLimitPartition.GetNoLimiter("bypass");
+                }
+
+                var partitionKey = RateLimitPartitionKeyResolver.ResolveGlobalPartition(httpContext);
+                return RateLimitPartition.GetTokenBucketLimiter(partitionKey, _ => new TokenBucketRateLimiterOptions
+                {
+                    TokenLimit = globalLimit,
+                    TokensPerPeriod = globalLimit,
+                    ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                });
             });
 
-            options.AddPolicy("api", context => CreateFixedWindowPartition(context, 60, useRedis, instancePrefix));
-            options.AddPolicy("rendering", context => CreateFixedWindowPartition(context, 30, useRedis, instancePrefix));
-            options.AddPolicy("test-conn", context => CreateFixedWindowPartition(context, 10, useRedis, instancePrefix));
+            options.AddPolicy("auth-strict", context =>
+            {
+                var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+                var partitionKey = string.IsNullOrWhiteSpace(remoteIp) ? "ip:unknown" : $"ip:{remoteIp}";
+                return RateLimitPartition.GetSlidingWindowLimiter(
+                    partitionKey,
+                    _ => CreateSlidingWindowOptions(authStrictLimit));
+            });
+
+            options.AddPolicy("api", context => CreateFixedWindowPartition(context, apiLimit, useRedis, instancePrefix));
+
+            options.AddPolicy("rendering", context =>
+            {
+                var partitionKey = RateLimitPartitionKeyResolver.Resolve(context);
+                return RateLimitPartition.GetConcurrencyLimiter(partitionKey, _ => new ConcurrencyLimiterOptions
+                {
+                    PermitLimit = renderingConcurrency,
+                    QueueLimit = renderingQueue,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                });
+            });
+
+            options.AddPolicy("connectivity-check", context =>
+                RateLimitPartition.GetSlidingWindowLimiter(
+                    RateLimitPartitionKeyResolver.Resolve(context),
+                    _ => CreateSlidingWindowOptions(connectivityCheckLimit)));
+
+            options.AddPolicy("test-conn", context =>
+                RateLimitPartition.GetSlidingWindowLimiter(
+                    RateLimitPartitionKeyResolver.Resolve(context),
+                    _ => CreateSlidingWindowOptions(connectivityCheckLimit)));
 
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.OnRejected = (context, ct) => HandleRateLimitRejectedAsync(context, configuration, ct);
+            options.OnRejected = (context, ct) =>
+            {
+                string? policyName = context.HttpContext.GetEndpoint()?.Metadata
+                    .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+                return RateLimitRejectionWriter.WriteAsync(context, configuration, policyName, ct);
+            };
         });
     }
+
+    private static SlidingWindowRateLimiterOptions CreateSlidingWindowOptions(int permitLimit) => new()
+    {
+        PermitLimit = permitLimit,
+        Window = TimeSpan.FromMinutes(1),
+        SegmentsPerWindow = 4,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+        QueueLimit = 0,
+        AutoReplenishment = true
+    };
 
     private static FixedWindowRateLimiterOptions CreateFixedWindowOptions(int permitLimit) => new()
     {
@@ -294,29 +360,6 @@ public static class ServiceCollectionExtensions
         }
 
         return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => windowOptions);
-    }
-
-    private static async ValueTask HandleRateLimitRejectedAsync(
-        Microsoft.AspNetCore.RateLimiting.OnRejectedContext context,
-        IConfiguration configuration,
-        CancellationToken ct)
-    {
-        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-        {
-            var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
-            context.HttpContext.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
-        }
-
-        context.HttpContext.Response.ContentType = "application/problem+json";
-        var problemDetails = ProblemDetailsBuilder.Create(
-            status: StatusCodes.Status429TooManyRequests,
-            title: "Too Many Requests",
-            detail: "Rate limit exceeded. Maximum 60 requests per minute per caller partition.",
-            errorCode: SmkDoc.Domain.Exceptions.ErrorCodes.RateLimited,
-            instance: context.HttpContext.Request.Path,
-            traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext),
-            typeBaseUri: ProblemDetailsBuilder.TryParseBaseUri(configuration["Problems:BaseUri"]));
-        await context.HttpContext.Response.WriteAsJsonAsync(problemDetails, ct);
     }
 
     private static void AddApiHealthChecks(

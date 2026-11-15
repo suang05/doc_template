@@ -12,6 +12,1322 @@
     }
   ],
   "paths": {
+    "/api/v1/management/break-glass-grants": {
+      "get": {
+        "tags": [
+          "BreakGlassAccess"
+        ],
+        "summary": "List active time-boxed break-glass grants optionally filtered by SuperAdmin or project.",
+        "operationId": "BreakGlassAccess_ListGrants",
+        "parameters": [
+          {
+            "name": "superAdminUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "targetProjectId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIReadOnlyListOfBreakGlassGrantResultDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "BreakGlassAccess"
+        ],
+        "summary": "Issue a time-boxed audited break-glass access grant into a tenant project.",
+        "operationId": "BreakGlassAccess_GrantAccess",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated unique key making retries safe. Completed responses are replayed for 24 hours.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantBreakGlassAccessRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantBreakGlassAccessRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantBreakGlassAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfBreakGlassGrantResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/break-glass-grants/{grantId}": {
+      "delete": {
+        "tags": [
+          "BreakGlassAccess"
+        ],
+        "summary": "Revoke an active break-glass grant immediately with optimistic concurrency.",
+        "operationId": "BreakGlassAccess_RevokeAccess",
+        "parameters": [
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/fonts": {
+      "get": {
+        "tags": [
+          "PlatformFonts"
+        ],
+        "summary": "List system-wide fonts (and optionally tenant-scoped fonts when projectId is specified).",
+        "operationId": "PlatformFonts_ListFonts",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIReadOnlyListOfPlatformFontResultDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "PlatformFonts"
+        ],
+        "summary": "Register a platform-wide system font in control-plane storage. Max 8 MB.",
+        "operationId": "PlatformFonts_RegisterFont",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated unique key making retries safe. Completed responses are replayed for 24 hours.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "file": {
+                        "$ref": "#/components/schemas/IFormFile"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "familyName": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "weight": {
+                        "type": "string",
+                        "default": "normal"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "style": {
+                        "type": "string",
+                        "default": "normal"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfPlatformFontResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/projects/{projectId}/quota": {
+      "get": {
+        "tags": [
+          "ProjectQuotas"
+        ],
+        "summary": "Retrieve effective operational quota limits for a tenant project.",
+        "operationId": "ProjectQuotas_GetQuota",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfProjectQuotaResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ProjectQuotas"
+        ],
+        "summary": "Create or update operational quota limits for a tenant project with optimistic concurrency.",
+        "operationId": "ProjectQuotas_UpsertQuota",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertProjectQuotaRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertProjectQuotaRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertProjectQuotaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfProjectQuotaResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/tenants": {
+      "get": {
+        "tags": [
+          "TenantProjects"
+        ],
+        "summary": "List all tenant projects across the platform in Control Plane metadata scope.",
+        "operationId": "TenantProjects_ListAllTenants",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedApiResponseOfProjectResultDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/projects/{projectId}/activate": {
+      "post": {
+        "tags": [
+          "TenantProjects"
+        ],
+        "summary": "Activate a suspended tenant project.",
+        "operationId": "TenantProjects_ActivateProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfProjectControlPlaneResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/projects/{projectId}/deactivate": {
+      "post": {
+        "tags": [
+          "TenantProjects"
+        ],
+        "summary": "Deactivate (suspend) a tenant project immediately.",
+        "operationId": "TenantProjects_DeactivateProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfProjectControlPlaneResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/management/projects/{projectId}/egress-cidrs": {
+      "put": {
+        "tags": [
+          "TenantProjects"
+        ],
+        "summary": "Update approved outbound private/RFC-1918 egress CIDRs for a tenant project.",
+        "operationId": "TenantProjects_UpdateEgressCidrs",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectEgressCidrsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectEgressCidrsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectEgressCidrsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfProjectControlPlaneResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/logs": {
       "get": {
         "tags": [
@@ -607,12 +1923,132 @@
         }
       }
     },
+    "/api/v1/documents": {
+      "post": {
+        "tags": [
+          "DocumentGeneration"
+        ],
+        "summary": "Generate a document synchronously from a published template slug and input JSON payload.",
+        "operationId": "DocumentGeneration_CreateDocument",
+        "parameters": [
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated unique key making retries safe. Completed responses are replayed for 24 hours.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfGenerateDocumentResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid credentials.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - authenticated but not permitted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/generate/{slug}": {
       "post": {
         "tags": [
           "DocumentGeneration"
         ],
-        "summary": "Track 1: Synchronous document generation from template slug and input JSON data.",
+        "summary": "Track 1 (Legacy): Synchronous document generation from template slug and input JSON data. Use POST /api/v1/documents instead.",
         "operationId": "DocumentGeneration_Generate",
         "parameters": [
           {
@@ -732,7 +2168,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/documents/generate-async/{slug}": {
@@ -740,7 +2177,7 @@
         "tags": [
           "DocumentGeneration"
         ],
-        "summary": "Track 2: Asynchronous document generation queue for high-volume enterprise batches (HTTP 202).",
+        "summary": "Track 2 (Legacy): Asynchronous document generation queue (HTTP 202). Use POST /api/v1/document-jobs instead.",
         "operationId": "DocumentGeneration_GenerateAsync",
         "parameters": [
           {
@@ -860,7 +2297,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/documents/jobs/{jobId}": {
@@ -868,7 +2306,7 @@
         "tags": [
           "DocumentGeneration"
         ],
-        "summary": "Track 2: Observability &amp; Polling endpoint to check status of an asynchronous document job.",
+        "summary": "Track 2 (Legacy): Polling endpoint to check status of an asynchronous document job. Use GET /api/v1/document-jobs/{jobId} instead.",
         "operationId": "DocumentGeneration_GetJobStatus",
         "parameters": [
           {
@@ -961,7 +2399,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/documents/preview": {
@@ -1450,13 +2889,985 @@
         }
       }
     },
-    "/api/v1/data-connections/test": {
+    "/api/v1/document-jobs": {
+      "post": {
+        "tags": [
+          "DocumentJobs"
+        ],
+        "summary": "Create an asynchronous Pipeline C document rendering job (single or batch).",
+        "operationId": "DocumentJobs_CreateJob",
+        "parameters": [
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Client-generated unique key making retries safe. Completed responses are replayed for 24 hours.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentJobRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentJobRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "DocumentJobs"
+        ],
+        "summary": "List document jobs for the active project using keyset cursor pagination.",
+        "operationId": "DocumentJobs_ListJobs",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobListResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/document-jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "DocumentJobs"
+        ],
+        "summary": "Get the current status and version metadata of a document job.",
+        "operationId": "DocumentJobs_GetJobById",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/document-jobs/{jobId}/result": {
+      "get": {
+        "tags": [
+          "DocumentJobs"
+        ],
+        "summary": "Stream the rendered document or batch ZIP bundle for a completed job.",
+        "operationId": "DocumentJobs_DownloadResult",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/document-jobs/{jobId}/items": {
+      "get": {
+        "tags": [
+          "DocumentJobs"
+        ],
+        "summary": "List per-item execution status entries belonging to a document job.",
+        "operationId": "DocumentJobs_ListJobItems",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIReadOnlyListOfDocumentJobItemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/document-jobs/{jobId}:cancel": {
+      "post": {
+        "tags": [
+          "DocumentJobs"
+        ],
+        "summary": "Request cancellation of a queued or running document job with optimistic concurrency.",
+        "operationId": "DocumentJobs_CancelJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/document-jobs/{jobId}:retry": {
+      "post": {
+        "tags": [
+          "DocumentJobs"
+        ],
+        "summary": "Re-queue a failed or canceled document job for another attempt with optimistic concurrency.",
+        "operationId": "DocumentJobs_RetryJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDocumentJobResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data-connections/{id}/connectivity-checks": {
       "post": {
         "tags": [
           "DataConnectionDiagnostics"
         ],
-        "summary": "Test connection credentials and reachability.",
-        "operationId": "DataConnectionDiagnostics_TestConnection",
+        "summary": "Check reachability and credentials for an already-saved database connection.",
+        "operationId": "DataConnectionDiagnostics_CheckSavedConnection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/data-connections/connectivity-checks": {
+      "post": {
+        "tags": [
+          "DataConnectionDiagnostics"
+        ],
+        "summary": "Check reachability and credentials for a supplied connection specification.",
+        "operationId": "DataConnectionDiagnostics_CheckConnection",
         "parameters": [
           {
             "name": "Project-Id",
@@ -1560,6 +3971,119 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/data-connections/test": {
+      "post": {
+        "tags": [
+          "DataConnectionDiagnostics"
+        ],
+        "summary": "Legacy connectivity check alias. Use POST /api/v1/data-connections/connectivity-checks instead.",
+        "operationId": "DataConnectionDiagnostics_TestConnection",
+        "parameters": [
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestDataConnectionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestDataConnectionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestDataConnectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTestDataConnectionResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/data-connections": {
@@ -1711,6 +4235,14 @@
           },
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1814,7 +4346,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -1887,20 +4419,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -1949,7 +4482,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -1985,6 +4518,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2042,20 +4585,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -2095,6 +4639,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2397,6 +4951,14 @@
           },
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2490,7 +5052,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -2563,20 +5125,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -2625,7 +5188,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -2651,6 +5214,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2708,20 +5281,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -2761,6 +5335,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2951,6 +5535,14 @@
           },
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3030,20 +5622,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -3083,6 +5676,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3388,6 +5991,104 @@
         }
       }
     },
+    "/api/v1/portal/projects": {
+      "get": {
+        "tags": [
+          "PortalProjects"
+        ],
+        "summary": "List projects accessible to the authenticated portal user.",
+        "operationId": "PortalProjects_ListAccessibleProjects",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedApiResponseOfProjectResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - authenticated but not permitted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - semantic or schema validation failed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - rate limit exceeded (see Retry-After header).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/management/projects/{projectId}/api-keys": {
       "get": {
         "tags": [
@@ -3537,6 +6238,14 @@
           },
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3627,7 +6336,8 @@
           {
             "name": "If-Match",
             "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -3677,6 +6387,16 @@
               }
             }
           },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Unprocessable Entity - semantic or schema validation failed.",
             "content": {
@@ -3715,7 +6435,7 @@
         "tags": [
           "Projects"
         ],
-        "summary": "List all projects accessible to the authenticated user with server-side pagination and search.",
+        "summary": "List all projects accessible to the authenticated user with server-side pagination and search (deprecated: use GET /api/v1/portal/projects).",
         "operationId": "Projects_ListProjects",
         "parameters": [
           {
@@ -3805,7 +6525,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       },
       "post": {
         "tags": [
@@ -3856,6 +6577,14 @@
           },
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3960,7 +6689,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -4047,7 +6776,8 @@
           {
             "name": "If-Match",
             "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -4109,6 +6839,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4309,6 +7049,14 @@
           },
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4388,20 +7136,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -4450,7 +7199,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -4496,6 +7245,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4555,20 +7314,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -4636,6 +7396,16 @@
               }
             }
           },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Unprocessable Entity - semantic or schema validation failed.",
             "content": {
@@ -4685,6 +7455,15 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -4732,7 +7511,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -4758,6 +7537,26 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4817,6 +7616,15 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
@@ -4871,7 +7679,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -4897,6 +7705,26 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4935,7 +7763,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/fonts": {
@@ -5140,6 +7969,17 @@
         ],
         "summary": "List all available fonts for the active project (legacy flat list).",
         "operationId": "FontManagement_ListFonts_ManagementSettingsFonts",
+        "parameters": [
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -5201,7 +8041,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       },
       "post": {
         "tags": [
@@ -5210,6 +8051,15 @@
         "summary": "Upload a new font file (.ttf, .otf, .woff, .woff2). Max 8 MB. Author or Admin role required.",
         "operationId": "FontManagement_UploadFont_ManagementSettingsFonts",
         "parameters": [
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           {
             "name": "Idempotency-Key",
             "in": "header",
@@ -5305,7 +8155,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/fonts/catalog": {
@@ -5397,6 +8248,17 @@
         ],
         "summary": "Get dual-source font catalog (Google Fonts + MinIO Custom Fonts).",
         "operationId": "FontManagement_GetCatalog_ManagementSettingsFontsCatalog",
+        "parameters": [
+          {
+            "name": "Project-Id",
+            "in": "header",
+            "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -5458,7 +8320,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/schemas/validate": {
@@ -5976,20 +8839,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -6018,7 +8882,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -6054,6 +8918,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6678,6 +9552,14 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -6791,7 +9673,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -6884,20 +9766,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -6926,7 +9809,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -6962,6 +9845,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7039,20 +9932,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -7072,6 +9966,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7240,20 +10144,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -7282,7 +10187,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -7318,6 +10223,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7589,20 +10504,21 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "description": "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -7631,7 +10547,7 @@
             "description": "OK",
             "headers": {
               "ETag": {
-                "description": "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
                 "schema": {
                   "type": "string"
                 }
@@ -7647,6 +10563,16 @@
           },
           "412": {
             "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7738,6 +10664,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -7829,6 +10763,14 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -8210,6 +11152,15 @@
             }
           },
           {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Project-Id",
             "in": "header",
             "description": "Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied).",
@@ -8222,10 +11173,38 @@
         "responses": {
           "200": {
             "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfRollbackVersionResultDto"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -8353,15 +11332,28 @@
           "maskedKey": {
             "type": "string",
             "default": ""
-          },
-          "concurrencyToken": {
-            "type": [
-              "null",
-              "string"
+          }
+        },
+        "description": "Result DTO representing an API Key record. MaskedKey exposes only the key prefix and trailing characters."
+      },
+      "ApiResponseOfBreakGlassGrantResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BreakGlassGrantResultDto"
+              }
             ]
           }
         },
-        "description": "Result DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters."
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
       "ApiResponseOfCommitDraftResultDto": {
         "required": [
@@ -8471,6 +11463,44 @@
               },
               {
                 "$ref": "#/components/schemas/DocumentJobDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
+      "ApiResponseOfDocumentJobListResult": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocumentJobListResult"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
+      "ApiResponseOfDocumentJobResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocumentJobResultDto"
               }
             ]
           }
@@ -8715,6 +11745,60 @@
         },
         "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
       },
+      "ApiResponseOfIReadOnlyListOfBreakGlassGrantResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BreakGlassGrantResultDto"
+            }
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
+      "ApiResponseOfIReadOnlyListOfDocumentJobItemDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DocumentJobItemDto"
+            }
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
+      "ApiResponseOfIReadOnlyListOfPlatformFontResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PlatformFontResultDto"
+            }
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
       "ApiResponseOfLoginResultDto": {
         "required": [
           "data"
@@ -8785,6 +11869,63 @@
               },
               {
                 "$ref": "#/components/schemas/ParseDraftResultDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
+      "ApiResponseOfPlatformFontResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlatformFontResultDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
+      "ApiResponseOfProjectControlPlaneResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProjectControlPlaneResultDto"
+              }
+            ]
+          }
+        },
+        "description": "Standard API Response wrapper for successful requests that return data.\r\nEnforces the \"Envelope Pattern\" for consistent JSON schemas."
+      },
+      "ApiResponseOfProjectQuotaResultDto": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProjectQuotaResultDto"
               }
             ]
           }
@@ -9074,6 +12215,59 @@
         },
         "description": "Metric entry for per-application generation count."
       },
+      "BreakGlassGrantResultDto": {
+        "required": [
+          "grantId",
+          "targetProjectId",
+          "superAdminUserId",
+          "grantedByUserId",
+          "reason",
+          "grantedAt",
+          "expiresAt",
+          "revokedAt",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetProjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "superAdminUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "grantedByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
       "CommitDraftRequest": {
         "required": [
           "name",
@@ -9253,6 +12447,105 @@
           }
         }
       },
+      "CreateDocumentJobItemRequest": {
+        "required": [
+          "payload"
+        ],
+        "type": "object",
+        "properties": {
+          "payload": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "documentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Single document render payload entry within an asynchronous Pipeline C document job."
+      },
+      "CreateDocumentJobRequest": {
+        "required": [
+          "slug"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "items": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CreateDocumentJobItemRequest"
+            }
+          },
+          "payload": { },
+          "outputFormat": {
+            "type": "string",
+            "default": "pdf"
+          },
+          "documentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "format": "int32",
+            "default": 3
+          },
+          "webhookUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "HTTP request contract for submitting an asynchronous single or batch Pipeline C rendering job.\r\nAccepts either IReadOnlyList&lt;CreateDocumentJobItemRequest&gt;? CreateDocumentJobRequest.Items for batch jobs or JsonElement? CreateDocumentJobRequest.Payload for single-document convenience."
+      },
+      "CreateDocumentRequest": {
+        "required": [
+          "slug",
+          "payload"
+        ],
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "outputFormat": {
+            "type": "string",
+            "default": "pdf"
+          },
+          "documentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "changeNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "skipValidation": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        },
+        "description": "HTTP request contract for synchronous document creation (`POST /api/v1/documents`)."
+      },
       "CreateProjectRequest": {
         "required": [
           "name",
@@ -9349,12 +12642,6 @@
               "string"
             ],
             "format": "date-time"
-          },
-          "concurrencyToken": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         },
         "description": "Result DTO representing a safe database connection definition (connection string omitted)."
@@ -9430,12 +12717,6 @@
               "string"
             ],
             "format": "date-time"
-          },
-          "concurrencyToken": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         },
         "description": "Result DTO representing a dataset query and cache configuration."
@@ -9512,7 +12793,219 @@
             ]
           }
         },
-        "description": "DTO representing the state of an asynchronous document generation job."
+        "description": "Legacy DTO representing the state of an asynchronous document generation job (preserved for Phase 4 A1 coexistence)."
+      },
+      "DocumentJobItemDto": {
+        "required": [
+          "id",
+          "itemIndex",
+          "documentRef",
+          "status",
+          "generationLogId",
+          "outputStorageKey",
+          "errorCode",
+          "errorMessage",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "documentRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "generationLogId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "outputStorageKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errorCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errorMessage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DocumentJobListResult": {
+        "required": [
+          "items",
+          "nextCursor",
+          "hasMore"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentJobResultDto"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DocumentJobResultDto": {
+        "required": [
+          "jobId",
+          "templateSlug",
+          "templateId",
+          "templateVersionId",
+          "status",
+          "outputFormat",
+          "attempt",
+          "maxAttempts",
+          "cancelRequested",
+          "totalItems",
+          "succeededItems",
+          "failedItems",
+          "resultGenerationLogId",
+          "errorCode",
+          "errorMessage",
+          "createdAt",
+          "startedAt",
+          "completedAt",
+          "downloadUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateSlug": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateVersionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "outputFormat": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelRequested": {
+            "type": "boolean"
+          },
+          "totalItems": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "succeededItems": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedItems": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resultGenerationLogId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "errorCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errorMessage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "downloadUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Canonical Pipeline C document job projection implementing optimistic concurrency versioning (IHasVersion)."
       },
       "DocumentVersionDto": {
         "required": [
@@ -9865,7 +13358,7 @@
             ]
           }
         },
-        "description": "HTTP request contract for document generation."
+        "description": "HTTP request contract for legacy slug-scoped document generation."
       },
       "GenerateDocumentResultDto": {
         "required": [
@@ -10003,6 +13496,38 @@
           }
         },
         "description": "DTO representing an execution log entry for document generation."
+      },
+      "GrantBreakGlassAccessRequest": {
+        "required": [
+          "targetProjectId",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "targetProjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "superAdminUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "durationMinutes": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32",
+            "default": 60
+          }
+        },
+        "description": "Control-plane request to grant time-boxed break-glass access for a SuperAdmin into a tenant project."
       },
       "IFormFile": {
         "type": "string",
@@ -10297,6 +13822,59 @@
           "system"
         ]
       },
+      "PlatformFontResultDto": {
+        "required": [
+          "id",
+          "familyName",
+          "weight",
+          "style",
+          "format",
+          "storageKey",
+          "checksumSha256",
+          "isSystemFont",
+          "projectId",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "familyName": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "string"
+          },
+          "style": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "storageKey": {
+            "type": "string"
+          },
+          "checksumSha256": {
+            "type": "string"
+          },
+          "isSystemFont": {
+            "type": "boolean"
+          },
+          "projectId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "PreviewDocumentRequest": {
         "required": [
           "payload"
@@ -10399,6 +13977,114 @@
         },
         "description": "RFC 9457 problem details returned for every 4xx/5xx response."
       },
+      "ProjectControlPlaneResultDto": {
+        "required": [
+          "id",
+          "companyId",
+          "name",
+          "slug",
+          "isActive",
+          "allowedEgressCidrs",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "allowedEgressCidrs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectQuotaResultDto": {
+        "required": [
+          "quotaId",
+          "projectId",
+          "maxRequestsPerMinute",
+          "maxConcurrentJobs",
+          "maxBatchItems",
+          "maxStorageBytes",
+          "maxActiveApiKeys",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "quotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "maxRequestsPerMinute": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxConcurrentJobs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxBatchItems": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxStorageBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maxActiveApiKeys": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "ProjectResultDto": {
         "required": [
           "id",
@@ -10433,12 +14119,6 @@
             ]
           },
           "writeApiKey": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "concurrencyToken": {
             "type": [
               "null",
               "string"
@@ -10958,12 +14638,6 @@
               "string"
             ],
             "format": "date-time"
-          },
-          "concurrencyToken": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         },
         "description": "Safe immutable Result DTO for templates, strictly isolating Domain Entities from Presentation."
@@ -11298,6 +14972,21 @@
           }
         }
       },
+      "UpdateProjectEgressCidrsRequest": {
+        "required": [
+          "allowedCidrs"
+        ],
+        "type": "object",
+        "properties": {
+          "allowedCidrs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Control-plane request to update tenant-approved outbound egress CIDRs for SQL connections and webhooks."
+      },
       "UpdateTemplateMetadataRequest": {
         "required": [
           "name",
@@ -11352,6 +15041,43 @@
           }
         },
         "description": "Result DTO returned after successfully uploading a font file to storage."
+      },
+      "UpsertProjectQuotaRequest": {
+        "required": [
+          "maxRequestsPerMinute",
+          "maxConcurrentJobs",
+          "maxBatchItems",
+          "maxStorageBytes",
+          "maxActiveApiKeys"
+        ],
+        "type": "object",
+        "properties": {
+          "maxRequestsPerMinute": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxConcurrentJobs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxBatchItems": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxStorageBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maxActiveApiKeys": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "description": "Control-plane request to create or update per-project operational quotas."
       },
       "UserProfileResultDto": {
         "required": [
@@ -11419,12 +15145,6 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
-          },
-          "concurrencyToken": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         },
         "description": "DTO representing user membership in a project."
@@ -11563,6 +15283,18 @@
   ],
   "tags": [
     {
+      "name": "BreakGlassAccess"
+    },
+    {
+      "name": "PlatformFonts"
+    },
+    {
+      "name": "ProjectQuotas"
+    },
+    {
+      "name": "TenantProjects"
+    },
+    {
       "name": "AuditLog"
     },
     {
@@ -11573,6 +15305,9 @@
     },
     {
       "name": "DocumentHistory"
+    },
+    {
+      "name": "DocumentJobs"
     },
     {
       "name": "DataConnectionDiagnostics"
@@ -11591,6 +15326,9 @@
     },
     {
       "name": "Auth"
+    },
+    {
+      "name": "PortalProjects"
     },
     {
       "name": "ProjectApiKeys"

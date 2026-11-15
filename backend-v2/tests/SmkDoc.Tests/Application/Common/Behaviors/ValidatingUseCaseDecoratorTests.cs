@@ -160,6 +160,7 @@ public sealed class ValidatingUseCaseDecoratorTests
     {
         // Arrange
         var services = new ServiceCollection();
+        services.AddSingleton(TimeProvider.System);
         services.AddScoped<IValidator<SampleCommand>, PrimarySampleValidator>();
         services.AddUseCase<SampleCommand, string, SampleUseCase>();
         services.AddUseCase<SampleCommand, VoidSampleUseCase>();
@@ -172,9 +173,14 @@ public sealed class ValidatingUseCaseDecoratorTests
         var concreteSample = scope.ServiceProvider.GetRequiredService<SampleUseCase>();
         var concreteVoid = scope.ServiceProvider.GetRequiredService<VoidSampleUseCase>();
 
-        // Assert decorator types
-        responseUseCase.Should().BeOfType<ValidatingUseCaseDecorator<SampleCommand, string>>();
-        voidUseCase.Should().BeOfType<ValidatingUseCaseDecorator<SampleCommand>>();
+        // Assert decorator types (outermost decorator in Phase 4 pipeline is LoggingUseCaseDecorator)
+        responseUseCase.Should().BeOfType<LoggingUseCaseDecorator<SampleCommand, string>>();
+        voidUseCase.Should().BeOfType<LoggingUseCaseDecorator<SampleCommand>>();
+
+        // Assert inner ValidatingUseCaseDecorator still rejects invalid commands before reaching the UseCase
+        var invalid = new SampleCommand("", new SampleCustomerPayload("invalid"), []);
+        await Assert.ThrowsAsync<ValidationException>(() => responseUseCase.ExecuteAsync(invalid, CancellationToken.None));
+        concreteSample.ExecutionCount.Should().Be(0);
 
         // Act: valid command flows through decorator to concrete instance
         var valid = new SampleCommand("invoice", new SampleCustomerPayload("1234567890123"), [new SampleItemPayload(Guid.NewGuid())]);

@@ -1,13 +1,20 @@
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Behaviors;
 using SmkDoc.Application.Modules.Rendering.Documents;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.CancelDocumentJob;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.CreateDocumentJob;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
+using SmkDoc.Application.Modules.Rendering.Documents.Commands.RetryDocumentJob;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.EventHandlers;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.DownloadDocumentVersion;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJobResult;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJobStatus;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentVersions;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.ListDocumentJobItems;
+using SmkDoc.Application.Modules.Rendering.Documents.Queries.ListDocumentJobs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.PreviewDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
 using SmkDoc.Application.Modules.Rendering.Logs.DTOs;
@@ -31,6 +38,9 @@ public static class RenderingModuleExtensions
 
         // Domain Event Handlers
         services.AddScoped<IDomainEventHandler<DocumentVersionCreatedDomainEvent>, DocumentVersionCreatedEventHandler>();
+        services.AddScoped<IDomainEventHandler<DocumentJobSucceededDomainEvent>, DocumentJobSucceededEventHandler>();
+        services.AddScoped<IDomainEventHandler<DocumentJobFailedDomainEvent>, DocumentJobFailedEventHandler>();
+        services.AddScoped<IDomainEventHandler<DocumentJobCanceledDomainEvent>, DocumentJobCanceledEventHandler>();
 
         // High-Throughput & Stateless Document Generation Pipeline (Action-Centric Vertical Slice)
         services.AddUseCase<GenerateDocumentCommand, GenerateDocumentResultDto, GenerateDocumentUseCase>();
@@ -45,9 +55,18 @@ public static class RenderingModuleExtensions
         services.AddUseCase<GetLogPayloadQuery, LogPayloadResultDto, GetLogPayloadUseCase>();
         services.AddUseCase<DownloadGenerationLogDocumentQuery, DownloadGenerationLogDocumentResult, DownloadGenerationLogDocumentUseCase>();
 
-        // Async Job Queue (Track 2)
+        // Legacy Async Job Queue Compatibility (A1 Coexistence)
         services.AddUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto, EnqueueDocumentGenerationUseCase>();
         services.AddUseCase<GetDocumentJobQuery, DocumentJobDto, GetDocumentJobUseCase>();
+
+        // Durable PostgreSQL Pipeline C Document Jobs
+        services.AddUseCase<CreateDocumentJobCommand, DocumentJobResultDto, CreateDocumentJobUseCase>();
+        services.AddUseCase<GetDocumentJobStatusQuery, DocumentJobResultDto, GetDocumentJobStatusUseCase>();
+        services.AddUseCase<ListDocumentJobsQuery, DocumentJobListResult, ListDocumentJobsUseCase>();
+        services.AddUseCase<GetDocumentJobResultQuery, DocumentJobFileResult, GetDocumentJobResultUseCase>();
+        services.AddUseCase<ListDocumentJobItemsQuery, IReadOnlyList<DocumentJobItemDto>, ListDocumentJobItemsUseCase>();
+        services.AddUseCase<CancelDocumentJobCommand, DocumentJobResultDto, CancelDocumentJobUseCase>();
+        services.AddUseCase<RetryDocumentJobCommand, DocumentJobResultDto, RetryDocumentJobUseCase>();
 
         return services;
     }

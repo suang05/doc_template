@@ -39,7 +39,7 @@ public sealed class ListDatasetsUseCase(
                 d.CacheSeconds,
                 d.CreatedAt,
                 d.UpdatedAt,
-                d.GetConcurrencyToken());
+                d.Version);
         }).ToList();
     }
 }

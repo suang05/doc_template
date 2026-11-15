@@ -149,12 +149,22 @@ public sealed partial class GenerationLogBatchWorker(
         var snapshot = batch.ToArray();
         try
         {
-            using var scope = scopeFactory.CreateScope();
-            var repo = scope.ServiceProvider.GetRequiredService<IGenerationLogRepository>();
-            var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+            foreach (var tenantGroup in snapshot.GroupBy(log => log.ProjectId))
+            {
+                using var scope = scopeFactory.CreateScope();
+                var tenantScope = scope.ServiceProvider.GetService<ITenantScope>();
+                using var _ = !tenantGroup.Key.IsEmpty
+                    ? tenantScope?.BeginTenant(tenantGroup.Key, "system:generation-log-worker")
+                    : null;
 
-            await repo.AddRangeAsync(snapshot, ct);
-            await unitOfWork.CommitAsync(ct);
+                var repo = scope.ServiceProvider.GetRequiredService<IGenerationLogRepository>();
+                var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+                var items = tenantGroup.ToArray();
+                await repo.AddRangeAsync(items, ct);
+                await unitOfWork.CommitAsync(ct);
+            }
+
             if (logger.IsEnabled(LogLevel.Debug))
             {
                 LogFlushedBatch(logger, snapshot.Length);

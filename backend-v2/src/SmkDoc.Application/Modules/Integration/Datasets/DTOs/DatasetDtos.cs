@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 
 /// <summary>
@@ -13,4 +15,8 @@ public sealed record DatasetResultDto(
     int CacheSeconds,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    string? ConcurrencyToken = null) : IHasConcurrencyToken;
+    [property: JsonIgnore] long Version = 1) : IHasVersion, IHasResourceId
+{
+    [JsonIgnore]
+    public Guid ResourceId => Id;
+}

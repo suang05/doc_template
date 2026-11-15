@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -10,6 +10,8 @@ services:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata-v2:/var/lib/postgresql/data
+    networks:
+      - backend-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-smkdoc}"]
       interval: 10s
@@ -29,6 +31,8 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata-v2:/data
+    networks:
+      - backend-net
     healthcheck:
       test: ["CMD-SHELL", "mc ready local || exit 1"]
       interval: 10s
@@ -39,11 +43,13 @@ services:
   gotenberg:
     image: gotenberg/gotenberg:8
     restart: always
-    ports:
-      - "${GOTENBERG_PORT:-3000}:3000"
+    expose:
+      - "3000"
     command:
       - "gotenberg"
       - "--api-port=3000"
+    networks:
+      - gotenberg-net
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
       interval: 10s
@@ -59,6 +65,8 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redisdata-v2:/data
+    networks:
+      - backend-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -75,15 +83,22 @@ services:
       - "${DOC_SERVER_PORT:-8080}:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - DOTNET_GCHeapHardLimitPercent=0x4B
       - GotenbergUrl=http://gotenberg:3000
+      - Gotenberg__MaxConcurrentRenders=${GOTENBERG_MAX_CONCURRENTRENDERS:-4}
+      - Worker__RunInApiHost=false
       - Minio__Endpoint=minio:9000
       - Minio__PublicEndpoint=${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       - Minio__AccessKey=${MINIO_ROOT_USER:-admin}
       - Minio__SecretKey=${MINIO_ROOT_PASSWORD:-password}
-      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-smkdoc};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-password}
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-smkdoc};Username=${SMK_APP_DB_USER:-smk_app};Password=${SMK_APP_DB_PASSWORD:-smk_app_dev_password_change_me}
+      - ConnectionStrings__MigratorConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-smkdoc};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-password}
       - ConnectionStrings__Redis=redis:6379,abortConnect=false
       - EncryptionKey=${ENCRYPTION_KEY:-dev-smk-encryption-key-32-bytes!!}
       - MASTER_API_KEY=${MASTER_API_KEY:-secret-smk-key-2026}
+      - Security__ApiKeyPepper=${API_KEY_PEPPER:-smk-doc-server-dev-api-key-pepper-min-32-chars-2026!}
+      - Security__AllowLegacySha256Keys=${ALLOW_LEGACY_SHA256_KEYS:-true}
+      - Security__WebhookSigningSecret=${WEBHOOK_SIGNING_SECRET:-smk-doc-server-dev-webhook-secret-min-32-chars-2026!}
       - Jwt__Secret=${JWT_SECRET:-dev-smk-jwt-secret-2026-must-be-at-least-32-chars}
       - Jwt__Issuer=${JWT_ISSUER:-smk-doc-server}
       - Jwt__Audience=${JWT_AUDIENCE:-smk-portal}
@@ -98,12 +113,56 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - backend-net
+      - gotenberg-net
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  doc-worker-v2:
+    build:
+      context: ./backend-v2
+      dockerfile: src/SmkDoc.Worker/Dockerfile
+    restart: always
+    environment:
+      - DOTNET_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - DOTNET_GCHeapHardLimitPercent=0x4B
+      - GotenbergUrl=http://gotenberg:3000
+      - Gotenberg__MaxConcurrentRenders=${GOTENBERG_MAX_CONCURRENTRENDERS:-4}
+      - Minio__Endpoint=minio:9000
+      - Minio__PublicEndpoint=${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
+      - Minio__AccessKey=${MINIO_ROOT_USER:-admin}
+      - Minio__SecretKey=${MINIO_ROOT_PASSWORD:-password}
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-smkdoc};Username=${SMK_APP_DB_USER:-smk_app};Password=${SMK_APP_DB_PASSWORD:-smk_app_dev_password_change_me}
+      - ConnectionStrings__Redis=redis:6379,abortConnect=false
+      - EncryptionKey=${ENCRYPTION_KEY:-dev-smk-encryption-key-32-bytes!!}
+      - Security__ApiKeyPepper=${API_KEY_PEPPER:-smk-doc-server-dev-api-key-pepper-min-32-chars-2026!}
+      - Security__AllowLegacySha256Keys=${ALLOW_LEGACY_SHA256_KEYS:-true}
+      - Security__WebhookSigningSecret=${WEBHOOK_SIGNING_SECRET:-smk-doc-server-dev-webhook-secret-min-32-chars-2026!}
+    depends_on:
+      doc-server-v2:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend-net
+      - gotenberg-net
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q 'SmkDoc.Worker.dll' /proc/1/cmdline || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   portal-v2:
     build:
@@ -124,12 +183,21 @@ services:
     depends_on:
       doc-server-v2:
         condition: service_healthy
+    networks:
+      - backend-net
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5
       start_period: 60s
+
+networks:
+  backend-net:
+    driver: bridge
+  gotenberg-net:
+    driver: bridge
+    internal: true
 
 volumes:
   pgdata-v2:

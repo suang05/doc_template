@@ -20,6 +20,9 @@ public static class StorageBuckets
     public static string TenantFontKey(ProjectId projectId, string safeFileName) =>
         $"fonts/{projectId.Value:N}/{safeFileName}";
 
+    public static string PlatformFontKey(string safeFileName) =>
+        $"fonts/platform/{safeFileName}";
+
     [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Canonical lowercase object storage key extension.")]
     private static string NormalizeExtension(string extensionWithDot) =>
         extensionWithDot.StartsWith('.')

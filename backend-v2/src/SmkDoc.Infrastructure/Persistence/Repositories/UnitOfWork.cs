@@ -1,41 +1,39 @@
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Domain.Common;
-using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.Exceptions;
 
 namespace SmkDoc.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Single post-commit coordinator committing tracked EF Core mutations and dispatching
-/// harvested domain events strictly after database transaction durability is achieved.
+/// Single commit boundary persisting tracked EF Core mutations together with atomic Outbox messages
+/// harvested by <see cref="Outbox.OutboxSaveChangesInterceptor"/>, translating storage conflicts
+/// into domain/application exceptions.
 /// </summary>
-public sealed class UnitOfWork(
-    AppDbContext dbContext,
-    IDomainEventDispatcher? domainEventDispatcher = null) : IUnitOfWork
+public sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
 {
     public async Task<int> CommitAsync(CancellationToken ct)
     {
-        var entitiesWithEvents = dbContext.ChangeTracker
-            .Entries<IHaveDomainEvents>()
-            .Where(entry => entry.Entity.DomainEvents.Count > 0)
-            .Select(entry => entry.Entity)
-            .ToList();
-
-        var pendingEvents = entitiesWithEvents
-            .SelectMany(entity => entity.DomainEvents)
-            .ToList();
-
-        var affectedRows = await dbContext.SaveChangesAsync(ct);
-
-        foreach (var entity in entitiesWithEvents)
+        try
         {
-            entity.ClearDomainEvents();
+            return await dbContext.SaveChangesAsync(ct);
         }
-
-        if (domainEventDispatcher is not null && pendingEvents.Count > 0)
+        catch (DbUpdateConcurrencyException)
         {
-            await domainEventDispatcher.DispatchEventsAsync(pendingEvents, ct);
+            throw PreconditionFailedException.VersionMismatch();
         }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pgEx)
+        {
+            var errorCode = pgEx.ConstraintName is not null &&
+                            pgEx.ConstraintName.Contains("slug", StringComparison.OrdinalIgnoreCase)
+                ? ErrorCodes.DuplicateSlug
+                : ErrorCodes.ResourceConflict;
 
-        return affectedRows;
+            throw new ConflictException(
+                "The operation conflicts with an existing resource or uniqueness constraint.",
+                errorCode,
+                pgEx);
+        }
     }
 }

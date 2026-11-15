@@ -39,6 +39,8 @@ public sealed class DocumentHistoryController(
     {
         var query = new DownloadDocumentVersionQuery(documentRef, version);
         var result = await downloadVersionUseCase.ExecuteAsync(query, ct);
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.XContentTypeOptions = "nosniff";
         return File(result.Stream, result.ContentType, result.FileName);
     }
 }

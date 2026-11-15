@@ -106,13 +106,13 @@ public sealed class TemplateStudioControllerTests
         // Arrange
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
-        _saveHtmlUseCase.ExecuteAsync(Arg.Is<SaveTemplateHtmlCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>())
+        _saveHtmlUseCase.ExecuteAsync(Arg.Is<SaveTemplateHtmlCommand>(c => c.TemplateId == templateId && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(new SaveHtmlResultDto(2));
 
         var request = new SaveHtmlRequest("<html>updated</html>", "{}", "Increment note");
 
         // Act
-        var result = await sut.SaveHtml(templateId, request, CancellationToken.None);
+        var result = await sut.SaveHtml(templateId, 1L, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;

@@ -1,4 +1,4 @@
-using SmkDoc.Application.Modules.Rendering.Documents.Models;
+using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 using SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -6,57 +6,17 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Queries;
 
 public sealed class GetDocumentJobUseCaseTests
 {
-    private readonly IDocumentRenderQueue _renderQueue = Substitute.For<IDocumentRenderQueue>();
-    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
-    private readonly Guid _projectId = Guid.NewGuid();
+    private readonly IDocumentJobReadModel _readModel = Substitute.For<IDocumentJobReadModel>();
 
-    public GetDocumentJobUseCaseTests()
-    {
-        _projectContext.IsResolved.Returns(true);
-        _projectContext.GetRequiredProjectId().Returns(new ProjectId(_projectId));
-        _projectContext.SystemRole.Returns((SystemRole?)null);
-    }
-
-    private GetDocumentJobUseCase CreateSut() => new(_renderQueue, _projectContext);
-
-    [Fact]
-    public async Task ExecuteAsync_WhenProjectContextNotResolvedAndNotSuperAdmin_ShouldThrowTenantContextNotResolvedException()
-    {
-        // Arrange
-        var jobId = Guid.NewGuid();
-        var job = new DocumentJob(
-            jobId,
-            Guid.NewGuid(),
-            "caller",
-            "invoice",
-            "{}",
-            "pdf",
-            null,
-            null,
-            false,
-            DateTimeOffset.UtcNow);
-
-        _renderQueue.GetJobAsync(jobId, Arg.Any<CancellationToken>())
-            .Returns(job);
-        _projectContext.IsResolved.Returns(false);
-        _projectContext.SystemRole.Returns((SystemRole?)null);
-        _projectContext.GetRequiredProjectId().Returns(_ => throw new TenantContextNotResolvedException());
-        var sut = CreateSut();
-
-        // Act
-        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<TenantContextNotResolvedException>();
-    }
+    private GetDocumentJobUseCase CreateSut() => new(_readModel);
 
     [Fact]
     public async Task ExecuteAsync_WhenJobNotFound_ShouldThrowNotFoundException()
     {
         // Arrange
         var jobId = Guid.NewGuid();
-        _renderQueue.GetJobAsync(jobId, Arg.Any<CancellationToken>())
-            .Returns((DocumentJob?)null);
+        _readModel.FindByIdAsync(new DocumentJobId(jobId), Arg.Any<CancellationToken>())
+            .Returns((DocumentJobResultDto?)null);
         var sut = CreateSut();
 
         // Act
@@ -68,54 +28,37 @@ public sealed class GetDocumentJobUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenJobBelongsToDifferentProject_ShouldThrowCrossTenantAccessDeniedException()
+    public async Task ExecuteAsync_WhenJobFound_ShouldReturnProjectedLegacyDto()
     {
         // Arrange
         var jobId = Guid.NewGuid();
-        var foreignProjectId = Guid.NewGuid();
-        var job = new DocumentJob(
-            jobId,
-            foreignProjectId,
-            "caller",
-            "invoice",
-            "{}",
-            "pdf",
-            null,
-            null,
-            false,
-            DateTimeOffset.UtcNow);
+        var templateId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var dto = new DocumentJobResultDto(
+            JobId: jobId,
+            TemplateSlug: "receipt",
+            TemplateId: templateId,
+            TemplateVersionId: versionId,
+            Status: DocumentJobStatus.Succeeded.Name,
+            OutputFormat: "pdf",
+            Attempt: 1,
+            MaxAttempts: 3,
+            CancelRequested: false,
+            TotalItems: 1,
+            SucceededItems: 1,
+            FailedItems: 0,
+            ResultGenerationLogId: null,
+            DownloadUrl: $"/api/v1/document-jobs/{jobId}/result",
+            ErrorCode: null,
+            ErrorMessage: null,
+            CreatedAt: now,
+            StartedAt: now,
+            CompletedAt: now,
+            Version: 2);
 
-        _renderQueue.GetJobAsync(jobId, Arg.Any<CancellationToken>())
-            .Returns(job);
-        var sut = CreateSut();
-
-        // Act
-        var act = () => sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<CrossTenantAccessDeniedException>()
-            .WithMessage($"*{foreignProjectId}*");
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenJobFoundInSameProject_ShouldReturnDto()
-    {
-        // Arrange
-        var jobId = Guid.NewGuid();
-        var job = new DocumentJob(
-            jobId,
-            _projectId,
-            "caller",
-            "receipt",
-            "{}",
-            "pdf",
-            "REC-001",
-            null,
-            false,
-            DateTimeOffset.UtcNow);
-
-        _renderQueue.GetJobAsync(jobId, Arg.Any<CancellationToken>())
-            .Returns(job);
+        _readModel.FindByIdAsync(new DocumentJobId(jobId), Arg.Any<CancellationToken>())
+            .Returns(dto);
         var sut = CreateSut();
 
         // Act
@@ -125,38 +68,8 @@ public sealed class GetDocumentJobUseCaseTests
         result.Should().NotBeNull();
         result.JobId.Should().Be(jobId);
         result.Slug.Should().Be("receipt");
-        result.Status.Should().Be(nameof(DocumentJobStatus.Queued));
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_WhenSuperAdmin_ShouldReturnDtoEvenForDifferentProject()
-    {
-        // Arrange
-        _projectContext.SystemRole.Returns(SystemRole.SuperAdmin);
-        var jobId = Guid.NewGuid();
-        var foreignProjectId = Guid.NewGuid();
-        var job = new DocumentJob(
-            jobId,
-            foreignProjectId,
-            "caller",
-            "receipt",
-            "{}",
-            "pdf",
-            null,
-            null,
-            false,
-            DateTimeOffset.UtcNow);
-
-        _renderQueue.GetJobAsync(jobId, Arg.Any<CancellationToken>())
-            .Returns(job);
-        var sut = CreateSut();
-
-        // Act
-        var result = await sut.ExecuteAsync(new GetDocumentJobQuery(jobId), CancellationToken.None);
-
-        // Assert
-        result.Should().NotBeNull();
-        result.JobId.Should().Be(jobId);
+        result.Status.Should().Be(DocumentJobStatus.Succeeded.Name);
+        result.CheckStatusUrl.Should().Be($"/api/v1/documents/jobs/{jobId}");
+        result.DownloadUrl.Should().Be($"/api/v1/document-jobs/{jobId}/result");
     }
 }
-

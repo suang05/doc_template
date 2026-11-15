@@ -24,7 +24,7 @@ public sealed class DatasetDiagnosticsController(
 {
     /// <summary>Dry-run a SQL dataset query to discover column schema and preview sample rows.</summary>
     [HttpPost("dry-run")]
-    [EnableRateLimiting("test-conn")]
+    [EnableRateLimiting("connectivity-check")]
     [ProducesResponseType(typeof(ApiResponse<DryRunDatasetResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

@@ -24,6 +24,6 @@ public sealed class GetDatasetByIdUseCase(
             dataset.CacheSeconds,
             dataset.CreatedAt,
             dataset.UpdatedAt,
-            dataset.GetConcurrencyToken());
+            dataset.Version);
     }
 }

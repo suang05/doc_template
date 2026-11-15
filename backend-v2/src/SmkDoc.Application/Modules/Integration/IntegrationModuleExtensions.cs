@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Behaviors;
+using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CheckSavedDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CreateDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.DeleteDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
@@ -39,6 +40,7 @@ public static class IntegrationModuleExtensions
         services.AddUseCase<UpdateDataConnectionCommand, DataConnectionResultDto, UpdateDataConnectionUseCase>();
         services.AddUseCase<DeleteDataConnectionCommand, DeleteDataConnectionUseCase>();
         services.AddUseCase<TestDataConnectionCommand, TestDataConnectionResultDto, TestDataConnectionUseCase>();
+        services.AddUseCase<CheckSavedDataConnectionCommand, TestDataConnectionResultDto, CheckSavedDataConnectionUseCase>();
         services.AddUseCase<GetDataConnectionByIdQuery, DataConnectionResultDto, GetDataConnectionByIdUseCase>();
         services.AddUseCase<ListDataConnectionsQuery, List<DataConnectionResultDto>, ListDataConnectionsUseCase>();
 

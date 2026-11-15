@@ -39,6 +39,8 @@ public sealed class DocumentArtifactController(
     {
         var query = new DownloadGenerationLogDocumentQuery(logId);
         var result = await downloadLogDocumentUseCase.ExecuteAsync(query, ct);
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.XContentTypeOptions = "nosniff";
         return File(result.Stream, result.ContentType, result.FileName);
     }
 

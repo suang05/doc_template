@@ -8,15 +8,45 @@ public sealed class ValidateApiKeyUseCase(
     IApiKeyRepository apiKeyRepo,
     IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?>
+    TimeProvider timeProvider,
+    IApiKeyVerifier? apiKeyVerifier = null,
+    IProjectStatusReader? projectStatusReader = null,
+    ISecurityAuditService? securityAuditService = null) : IUseCase<ValidateApiKeyQuery, ValidatedApiKeyResultDto?>
 {
     public async Task<ValidatedApiKeyResultDto?> ExecuteAsync(ValidateApiKeyQuery query, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query.PlainTextKey)) return null;
 
+        var now = timeProvider.GetUtcNow();
+
+        if (apiKeyVerifier is not null)
+        {
+            var verified = await apiKeyVerifier.VerifyAsync(query.PlainTextKey, ct);
+            if (verified is null)
+            {
+                return null;
+            }
+
+            var isProjectActive = projectStatusReader is not null
+                ? (await projectStatusReader.FindProjectStatusAsync(verified.ProjectId, ct))?.IsActive ?? false
+                : (await projectRepo.GetByIdAsync(verified.ProjectId, ct))?.IsActive ?? false;
+
+            if (!isProjectActive)
+            {
+                throw new ProjectDeactivatedException(verified.ProjectId.Value);
+            }
+
+            await apiKeyVerifier.TouchUsageAsync(verified.KeyId, now, ct);
+            if (verified.IsLegacySha256)
+            {
+                securityAuditService?.LogLegacyApiKeyUsed(verified.KeyId.Value, verified.ProjectId.Value);
+            }
+
+            return new ValidatedApiKeyResultDto(verified.KeyId.Value, verified.CallerApp, verified.ProjectId.Value, verified.Scope.Name);
+        }
+
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(query.PlainTextKey));
         var key = await apiKeyRepo.GetByKeyHashAsync(hash, ct);
-        var now = timeProvider.GetUtcNow();
 
         if (key == null || !key.IsUsableAt(now)) return null;
 
@@ -28,8 +58,11 @@ public sealed class ValidateApiKeyUseCase(
         DateTimeOffset now,
         CancellationToken ct)
     {
-        var project = await projectRepo.GetByIdAsync(key.ProjectId, ct);
-        if (project == null || !project.IsActive)
+        var isProjectActive = projectStatusReader is not null
+            ? (await projectStatusReader.FindProjectStatusAsync(key.ProjectId, ct))?.IsActive ?? false
+            : (await projectRepo.GetByIdAsync(key.ProjectId, ct))?.IsActive ?? false;
+
+        if (!isProjectActive)
         {
             throw new ProjectDeactivatedException(key.ProjectId.Value);
         }

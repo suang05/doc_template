@@ -3,8 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using SmkDoc.Application.Common.Exceptions;
+using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Rendering.Documents.Services;
+using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.BackgroundWorkers;
 
@@ -16,14 +19,15 @@ public sealed class DocumentRetentionWorkerOptions
 }
 
 /// <summary>
-/// Background worker periodically purging expired document outputs from MinIO storage.
-/// Invariant: Storage retention enforcement prevents unbounded storage consumption.
+/// Background worker periodically purging expired document outputs from MinIO storage
+/// across active tenant projects via explicit RLS-scoped <see cref="ITenantScope"/> execution.
 /// </summary>
 public sealed partial class DocumentRetentionWorker(
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
     ILogger<DocumentRetentionWorker> logger,
-    IOptions<DocumentRetentionWorkerOptions>? options = null) : BackgroundService
+    IOptions<DocumentRetentionWorkerOptions>? options = null,
+    NpgsqlDataSource? dataSource = null) : BackgroundService
 {
     private readonly TimeSpan _retentionPeriod = options?.Value.RetentionPeriod ?? TimeSpan.FromHours(24);
     private readonly TimeSpan _checkInterval = options?.Value.CheckInterval ?? TimeSpan.FromMinutes(30);
@@ -65,23 +69,72 @@ public sealed partial class DocumentRetentionWorker(
     {
         await Task.Delay(_checkInterval, timeProvider, stoppingToken);
 
-        using var scope = scopeFactory.CreateScope();
-        var retentionProcessor = scope.ServiceProvider.GetRequiredService<IDocumentRetentionProcessor>();
-
         int totalPurged = 0;
-        int purgedInBatch;
-        do
+
+        if (dataSource is not null)
         {
-            purgedInBatch = await retentionProcessor.PurgeExpiredOutputsAsync(
-                _retentionPeriod, _batchSize, stoppingToken);
-            totalPurged += purgedInBatch;
+            var activeProjectIds = await ListActiveProjectIdsAsync(dataSource, stoppingToken);
+            foreach (var projectId in activeProjectIds)
+            {
+                if (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                totalPurged += await PurgeSingleProjectAsync(new ProjectId(projectId), stoppingToken);
+            }
         }
-        while (purgedInBatch >= _batchSize && !stoppingToken.IsCancellationRequested);
+        else
+        {
+            using var scope = scopeFactory.CreateScope();
+            var retentionProcessor = scope.ServiceProvider.GetRequiredService<IDocumentRetentionProcessor>();
+            totalPurged += await PurgeAllBatchesInScopeAsync(retentionProcessor, stoppingToken);
+        }
 
         if (totalPurged > 0)
         {
             LogCycleCompleted(logger, totalPurged);
         }
+    }
+
+    private async Task<int> PurgeSingleProjectAsync(ProjectId projectId, CancellationToken stoppingToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var tenantScope = scope.ServiceProvider.GetService<ITenantScope>();
+        using var _ = tenantScope?.BeginTenant(projectId, "system:retention-worker");
+
+        var retentionProcessor = scope.ServiceProvider.GetRequiredService<IDocumentRetentionProcessor>();
+        return await PurgeAllBatchesInScopeAsync(retentionProcessor, stoppingToken);
+    }
+
+    private async Task<int> PurgeAllBatchesInScopeAsync(IDocumentRetentionProcessor retentionProcessor, CancellationToken stoppingToken)
+    {
+        int purged = 0;
+        int purgedInBatch;
+        do
+        {
+            purgedInBatch = await retentionProcessor.PurgeExpiredOutputsAsync(_retentionPeriod, _batchSize, stoppingToken);
+            purged += purgedInBatch;
+        }
+        while (purgedInBatch >= _batchSize && !stoppingToken.IsCancellationRequested);
+
+        return purged;
+    }
+
+    private static async Task<List<Guid>> ListActiveProjectIdsAsync(NpgsqlDataSource source, CancellationToken ct)
+    {
+        var ids = new List<Guid>();
+        await using var conn = await source.OpenConnectionAsync(ct);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT \"ProjectId\" FROM public.fn_list_active_project_ids();";
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            ids.Add(reader.GetGuid(0));
+        }
+
+        return ids;
     }
 
     private void LogCycleFailure(Exception ex) =>

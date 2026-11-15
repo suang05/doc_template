@@ -10,7 +10,8 @@ namespace SmkDoc.Infrastructure.Engines.Fonts;
 
 public sealed class FontCatalogAdapter(
     IStorageService storageService,
-    ICurrentProjectContext projectContext) : IFontCatalogPort
+    ICurrentProjectContext projectContext,
+    IFontReadModel? fontReadModel = null) : IFontCatalogPort
 {
     private const int PooledByteChunkSize = 24_576; // 24 KB, exact multiple of 3 for contiguous Base64 framing
     private const int PooledCharChunkSize = 32_768; // 24_576 * 4 / 3 chars (64 KB < LOH threshold)
@@ -55,9 +56,6 @@ public sealed class FontCatalogAdapter(
     public async Task<FontCatalogDto> GetCatalogAsync(CancellationToken ct)
     {
         var projectId = projectContext.GetRequiredProjectId();
-        string tenantPrefix = $"fonts/{projectId.Value:N}/";
-        var customFontKeys = await storageService.ListObjectsAsync(StorageBuckets.Fonts, tenantPrefix, ct) ?? [];
-
         var customFonts = new List<FontDescriptorDto>();
         var allNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -68,21 +66,8 @@ public sealed class FontCatalogAdapter(
 
         allNames.Add("Sarabun-Regular.ttf");
 
-        foreach (var key in customFontKeys)
-        {
-            var fileName = Path.GetFileName(key);
-            if (string.IsNullOrWhiteSpace(fileName))
-                continue;
-
-            var family = Path.GetFileNameWithoutExtension(fileName);
-            allNames.Add(fileName);
-
-            customFonts.Add(new FontDescriptorDto(
-                FontFamily: family,
-                DisplayName: $"{family} (Custom)",
-                Source: FontSource.MinIO,
-                FileName: fileName));
-        }
+        await AddStorageFontsAsync(projectId, customFonts, allNames, ct);
+        await MergeRegisteredFontsAsync(projectId, customFonts, allNames, ct);
 
         var sortedNames = allNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
 
@@ -90,6 +75,65 @@ public sealed class FontCatalogAdapter(
             GoogleFonts: CuratedGoogleFontsList,
             CustomFonts: customFonts.AsReadOnly(),
             AllFontNames: sortedNames);
+    }
+
+    private async Task AddStorageFontsAsync(
+        Domain.ValueObjects.Ids.ProjectId projectId,
+        List<FontDescriptorDto> customFonts,
+        HashSet<string> allNames,
+        CancellationToken ct)
+    {
+        string tenantPrefix = $"fonts/{projectId.Value:N}/";
+        var customFontKeys = await storageService.ListObjectsAsync(StorageBuckets.Fonts, tenantPrefix, ct) ?? [];
+
+        foreach (var fileName in customFontKeys
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrWhiteSpace(name)))
+        {
+            var family = Path.GetFileNameWithoutExtension(fileName!);
+            allNames.Add(fileName!);
+
+            customFonts.Add(new FontDescriptorDto(
+                FontFamily: family,
+                DisplayName: $"{family} (Custom)",
+                Source: FontSource.MinIO,
+                FileName: fileName));
+        }
+    }
+
+    private async Task MergeRegisteredFontsAsync(
+        Domain.ValueObjects.Ids.ProjectId projectId,
+        List<FontDescriptorDto> customFonts,
+        HashSet<string> allNames,
+        CancellationToken ct)
+    {
+        if (fontReadModel is null)
+        {
+            return;
+        }
+
+        var registeredFonts = await fontReadModel.ListRegisteredFontsAsync(projectId, ct);
+        var existingFiles = new HashSet<string>(
+            customFonts.Where(f => !string.IsNullOrWhiteSpace(f.FileName)).Select(f => f.FileName!),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var registered in registeredFonts)
+        {
+            if (!string.IsNullOrWhiteSpace(registered.FontFamily))
+            {
+                allNames.Add(registered.FontFamily);
+            }
+
+            if (!string.IsNullOrWhiteSpace(registered.FileName))
+            {
+                allNames.Add(registered.FileName);
+            }
+
+            if (string.IsNullOrWhiteSpace(registered.FileName) || existingFiles.Add(registered.FileName))
+            {
+                customFonts.Add(registered);
+            }
+        }
     }
 
     public async Task<string> GetFontBase64Async(string fileName, CancellationToken ct)

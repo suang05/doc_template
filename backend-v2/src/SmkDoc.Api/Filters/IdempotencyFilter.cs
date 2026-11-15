@@ -3,17 +3,19 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Options;
 using SmkDoc.Api.Common.Responses;
+using SmkDoc.Api.OpenApi;
 using SmkDoc.Application.Common.Interfaces;
 
 namespace SmkDoc.Api.Filters;
 
 /// <summary>
 /// Action filter enforcing the IETF Idempotency-Key specification on state-mutating HTTP endpoints.
-/// Supports atomic in-flight locking, replay of completed responses, payload mismatch detection,
-/// and automatic rollback on failure/exceptions.
+/// Uses durable tenant-scoped acquisition, coordinates with <see cref="IIdempotencyExecutionScope"/>,
+/// emits <c>Retry-After</c> on concurrent in-flight conflicts, and rolls back in-flight locks on failure.
 /// </summary>
 public sealed partial class IdempotencyFilter(
     IIdempotencyStore idempotencyStore,
+    IIdempotencyExecutionScope executionScope,
     ICurrentProjectContext projectContext,
     ILogger<IdempotencyFilter> logger,
     JsonSerializerOptions jsonSerializerOptions,
@@ -39,13 +41,16 @@ public sealed partial class IdempotencyFilter(
         Message = "Operation resulted in unhandled exception for Idempotency-Key {IdempotencyKey}. Rolling back in-flight lock.")]
     private static partial void LogUnhandledRollback(ILogger logger, string idempotencyKey);
 
+    [ActivatorUtilitiesConstructor]
     public IdempotencyFilter(
         IIdempotencyStore idempotencyStore,
+        IIdempotencyExecutionScope executionScope,
         ICurrentProjectContext projectContext,
         ILogger<IdempotencyFilter> logger,
         IOptions<JsonOptions> jsonOptions)
         : this(
             idempotencyStore,
+            executionScope,
             projectContext,
             logger,
             jsonOptions.Value.JsonSerializerOptions,
@@ -74,69 +79,92 @@ public sealed partial class IdempotencyFilter(
             return;
         }
 
-        var idempotencyKey = rawKey.ToString().Trim();
-        var callerId = ResolveCallerId();
-        var cacheKey = $"idempotency:{callerId}:{idempotencyKey}";
-        var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonSerializerOptions);
+        string idempotencyKey = rawKey.ToString().Trim();
+        Guid? projectId = projectContext.TryGetProjectId()?.Value;
+        string credentialId = ResolveCredentialId();
+        string scope = ResolveScope(context);
+        string fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, jsonSerializerOptions);
 
         var acquisitionResult = await idempotencyStore.TryAcquireOrGetAsync(
-            cacheKey,
-            fingerprint,
-            InFlightTtl,
+            new IdempotencyAcquisitionRequest(
+                projectId,
+                credentialId,
+                scope,
+                idempotencyKey,
+                fingerprint,
+                InFlightTtl,
+                completedTtl),
             context.HttpContext.RequestAborted);
 
-        if (!acquisitionResult.IsAcquired &&
-            acquisitionResult.ExistingRecord is not null &&
-            TryHandleExistingRecord(context, acquisitionResult.ExistingRecord, idempotencyKey, callerId, fingerprint))
+        if (!acquisitionResult.IsAcquired)
         {
+            HandleConflictOrReplay(context, acquisitionResult.ExistingRecord, idempotencyKey, credentialId, fingerprint);
             return;
         }
 
-        var executedContext = await ExecuteWithRollbackAsync(context, next, cacheKey, idempotencyKey);
+        executionScope.MarkFilterManaged();
+
+        var executedContext = await ExecuteWithRollbackAsync(
+            next,
+            projectId,
+            credentialId,
+            scope,
+            idempotencyKey);
+
         if (executedContext is not null)
         {
-            await PersistOrEvictResponseAsync(context, executedContext, cacheKey, fingerprint);
+            await PersistOrEvictResponseAsync(
+                context,
+                executedContext,
+                projectId,
+                credentialId,
+                scope,
+                idempotencyKey,
+                fingerprint);
         }
     }
 
-    private string ResolveCallerId() =>
-        projectContext.IsResolved
-            ? projectContext.GetRequiredProjectId().Value.ToString("N")
-            : (projectContext.UserId?.Value.ToString("N") ?? projectContext.CallerIdentity ?? "anonymous");
+    private string ResolveCredentialId() =>
+        projectContext.ApiKeyId?.Value.ToString("N")
+        ?? projectContext.UserId?.Value.ToString("N")
+        ?? (string.IsNullOrWhiteSpace(projectContext.CallerIdentity) ? "anonymous" : projectContext.CallerIdentity.Trim());
 
-    private bool TryHandleExistingRecord(
+    private static string ResolveScope(ActionExecutingContext context)
+    {
+        string method = context.HttpContext.Request.Method.ToUpperInvariant();
+        string path = context.HttpContext.Request.Path.Value ?? string.Empty;
+        return $"{method}:{path}";
+    }
+
+    private void HandleConflictOrReplay(
         ActionExecutingContext context,
-        IdempotencyRecord existing,
+        IdempotencyRecord? existing,
         string idempotencyKey,
-        string callerId,
+        string credentialId,
         string fingerprint)
     {
-        if (existing.Status == IdempotencyStatus.InFlight)
+        if (existing is null || existing.Status == IdempotencyStatus.InFlight)
         {
-            LogKeyInFlight(logger, idempotencyKey, callerId);
+            LogKeyInFlight(logger, idempotencyKey, credentialId);
+            context.HttpContext.Response.Headers.RetryAfter = "2";
             context.Result = new ConflictObjectResult(ProblemDetailsBuilder.Create(
                 status: StatusCodes.Status409Conflict,
                 title: "Request In-Flight",
                 detail: "A mutation request with this Idempotency-Key is currently being processed.",
-                errorCode: "IDEMPOTENCY_IN_FLIGHT",
+                errorCode: Domain.Exceptions.ErrorCodes.IdempotencyInProgress,
                 instance: context.HttpContext.Request.Path,
                 traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext)));
-            return true;
-        }
-
-        if (existing.Status != IdempotencyStatus.Completed)
-        {
-            return false;
+            return;
         }
 
         if (!string.Equals(existing.RequestFingerprint, fingerprint, StringComparison.Ordinal))
         {
-            LogKeyPayloadMismatch(logger, idempotencyKey, callerId);
+            LogKeyPayloadMismatch(logger, idempotencyKey, credentialId);
             var mismatchDetails = ProblemDetailsBuilder.Create(
                 status: StatusCodes.Status422UnprocessableEntity,
                 title: "Idempotency-Key Payload Mismatch",
                 detail: "This Idempotency-Key was previously used with a different request payload.",
-                errorCode: "IDEMPOTENCY_PAYLOAD_MISMATCH",
+                errorCode: Domain.Exceptions.ErrorCodes.IdempotencyKeyReused,
                 instance: context.HttpContext.Request.Path,
                 traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext));
 
@@ -144,11 +172,23 @@ public sealed partial class IdempotencyFilter(
             {
                 StatusCode = StatusCodes.Status422UnprocessableEntity
             };
-            return true;
+            return;
+        }
+
+        if (existing.Status != IdempotencyStatus.Completed)
+        {
+            context.HttpContext.Response.Headers.RetryAfter = "2";
+            context.Result = new ConflictObjectResult(ProblemDetailsBuilder.Create(
+                status: StatusCodes.Status409Conflict,
+                title: "Idempotency Conflict",
+                detail: "This Idempotency-Key is associated with an incomplete prior request.",
+                errorCode: Domain.Exceptions.ErrorCodes.IdempotencyInProgress,
+                instance: context.HttpContext.Request.Path,
+                traceId: ProblemDetailsBuilder.ResolveTraceId(context.HttpContext)));
+            return;
         }
 
         ReplayCachedResponse(context, existing);
-        return true;
     }
 
     private static void ReplayCachedResponse(ActionExecutingContext context, IdempotencyRecord existing)
@@ -175,9 +215,10 @@ public sealed partial class IdempotencyFilter(
     }
 
     private async Task<ActionExecutedContext?> ExecuteWithRollbackAsync(
-        ActionExecutingContext context,
         ActionExecutionDelegate next,
-        string cacheKey,
+        Guid? projectId,
+        string credentialId,
+        string scope,
         string idempotencyKey)
     {
         ActionExecutedContext executedContext;
@@ -187,14 +228,14 @@ public sealed partial class IdempotencyFilter(
         }
         catch (Exception)
         {
-            await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
+            await idempotencyStore.RemoveAsync(projectId, credentialId, scope, idempotencyKey, CancellationToken.None);
             throw;
         }
 
         if (executedContext.Exception is not null)
         {
             LogUnhandledRollback(logger, idempotencyKey);
-            await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
+            await idempotencyStore.RemoveAsync(projectId, credentialId, scope, idempotencyKey, CancellationToken.None);
             return null;
         }
 
@@ -204,7 +245,10 @@ public sealed partial class IdempotencyFilter(
     private async Task PersistOrEvictResponseAsync(
         ActionExecutingContext context,
         ActionExecutedContext executedContext,
-        string cacheKey,
+        Guid? projectId,
+        string credentialId,
+        string scope,
+        string idempotencyKey,
         string fingerprint)
     {
         if (executedContext.Result is ObjectResult objectResult)
@@ -212,12 +256,16 @@ public sealed partial class IdempotencyFilter(
             var statusCode = objectResult.StatusCode ?? StatusCodes.Status200OK;
             await SaveOrEvictSuccessStatusAsync(
                 context.HttpContext,
-                cacheKey,
+                projectId,
+                credentialId,
+                scope,
+                idempotencyKey,
                 fingerprint,
                 statusCode,
                 () => (
                     JsonSerializer.Serialize(objectResult.Value, jsonSerializerOptions),
-                    ExtractLocationHeaders(context.HttpContext.Response.Headers)));
+                    ExtractReplayHeaders(context.HttpContext.Response.Headers),
+                    ExtractResourceId(objectResult.Value)));
             return;
         }
 
@@ -225,42 +273,75 @@ public sealed partial class IdempotencyFilter(
         {
             await SaveOrEvictSuccessStatusAsync(
                 context.HttpContext,
-                cacheKey,
+                projectId,
+                credentialId,
+                scope,
+                idempotencyKey,
                 fingerprint,
                 statusCodeResult.StatusCode,
-                static () => (string.Empty, null));
+                static () => (string.Empty, null, null));
             return;
         }
 
-        await idempotencyStore.RemoveAsync(cacheKey, context.HttpContext.RequestAborted);
+        await idempotencyStore.RemoveAsync(projectId, credentialId, scope, idempotencyKey, CancellationToken.None);
     }
 
     private async Task SaveOrEvictSuccessStatusAsync(
         HttpContext httpContext,
-        string cacheKey,
+        Guid? projectId,
+        string credentialId,
+        string scope,
+        string idempotencyKey,
         string fingerprint,
         int statusCode,
-        Func<(string Body, Dictionary<string, string>? Headers)> payloadFactory)
+        Func<(string Body, Dictionary<string, string>? Headers, Guid? ResourceId)> payloadFactory)
     {
         if (statusCode is >= 200 and < 300)
         {
-            var (body, headers) = payloadFactory();
+            var (body, headers, resourceId) = payloadFactory();
             await idempotencyStore.SaveCompletedAsync(
-                cacheKey,
-                fingerprint,
-                statusCode,
-                body,
-                headers,
-                completedTtl,
+                new IdempotencyCompletionRequest(
+                    projectId,
+                    credentialId,
+                    scope,
+                    idempotencyKey,
+                    fingerprint,
+                    statusCode,
+                    body,
+                    headers,
+                    completedTtl,
+                    resourceId),
                 httpContext.RequestAborted);
             return;
         }
 
-        await idempotencyStore.RemoveAsync(cacheKey, httpContext.RequestAborted);
+        await idempotencyStore.RemoveAsync(projectId, credentialId, scope, idempotencyKey, CancellationToken.None);
     }
 
-    private static Dictionary<string, string>? ExtractLocationHeaders(IHeaderDictionary responseHeaders) =>
-        responseHeaders.TryGetValue("Location", out var locationValue)
-            ? new Dictionary<string, string> { ["Location"] = locationValue.ToString() }
-            : null;
+    private static Guid? ExtractResourceId(object? value)
+    {
+        var payload = value is IApiResponse envelope ? envelope.Data : value;
+        return payload is IHasResourceId resource ? resource.ResourceId : null;
+    }
+
+    private static Dictionary<string, string>? ExtractReplayHeaders(IHeaderDictionary responseHeaders)
+    {
+        Dictionary<string, string>? headers = null;
+
+        if (responseHeaders.TryGetValue("Location", out var locationValue))
+        {
+            headers = new Dictionary<string, string>
+            {
+                ["Location"] = locationValue.ToString()
+            };
+        }
+
+        if (responseHeaders.TryGetValue(OpenApiNames.ETagHeader, out var etagValue))
+        {
+            headers ??= [];
+            headers[OpenApiNames.ETagHeader] = etagValue.ToString();
+        }
+
+        return headers;
+    }
 }

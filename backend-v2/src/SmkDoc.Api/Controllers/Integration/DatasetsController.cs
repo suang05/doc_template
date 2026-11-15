@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.Datasets;
@@ -67,12 +68,21 @@ public sealed class DatasetsController(
     [ProducesResponseType(typeof(ApiResponse<DatasetResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         [FromBody] UpdateDatasetRequest request,
         CancellationToken ct)
     {
-        var command = new UpdateDatasetCommand(id, request.Name, request.Description, request.DataConnectionId, request.SqlQuery, request.CacheSeconds ?? 0);
+        var command = new UpdateDatasetCommand(
+            id,
+            request.Name,
+            request.Description,
+            request.DataConnectionId,
+            request.SqlQuery,
+            request.CacheSeconds ?? 0,
+            expectedVersion);
         var result = await updateUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<DatasetResultDto>(result));
     }
@@ -82,11 +92,13 @@ public sealed class DatasetsController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Delete(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
-        var command = new DeleteDatasetCommand(id);
+        var command = new DeleteDatasetCommand(id, expectedVersion);
         await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

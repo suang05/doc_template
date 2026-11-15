@@ -1,0 +1,46 @@
+using System.Data.Common;
+using System.Net.Sockets;
+using SmkDoc.Application.Modules.Integration.DataConnections.DTOs;
+
+namespace SmkDoc.Application.Modules.Integration.DataConnections.Commands.CheckSavedDataConnection;
+
+internal static class DataConnectionConnectivityProbe
+{
+    internal static async Task<TestDataConnectionResultDto> ExecuteAsync(
+        ISqlExecutorService sqlExecutor,
+        string provider,
+        string connectionString,
+        CancellationToken ct)
+    {
+        try
+        {
+            const string testQuery = "SELECT 1";
+            await sqlExecutor.ExecuteQueryAsJsonAsync(provider, connectionString, testQuery, null, ct);
+            return new TestDataConnectionResultDto(true, "Connection successful.");
+        }
+        catch (DbException ex)
+        {
+            return new TestDataConnectionResultDto(false, "Connection failed.", ex.Message);
+        }
+        catch (SocketException ex)
+        {
+            return new TestDataConnectionResultDto(false, "Connection failed.", ex.Message);
+        }
+        catch (TimeoutException ex)
+        {
+            return new TestDataConnectionResultDto(false, "Connection failed.", ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new TestDataConnectionResultDto(false, "Connection failed.", ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return new TestDataConnectionResultDto(false, "Connection failed.", ex.Message);
+        }
+        catch (DatasetExecutionException ex)
+        {
+            return new TestDataConnectionResultDto(false, "Connection failed.", ex.Message);
+        }
+    }
+}

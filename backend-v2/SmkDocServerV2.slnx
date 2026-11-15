@@ -4,6 +4,7 @@
     <Project Path="src/SmkDoc.Application/SmkDoc.Application.csproj" />
     <Project Path="src/SmkDoc.Domain/SmkDoc.Domain.csproj" />
     <Project Path="src/SmkDoc.Infrastructure/SmkDoc.Infrastructure.csproj" />
+    <Project Path="src/SmkDoc.Worker/SmkDoc.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SmkDoc.Tests/SmkDoc.Tests.csproj" />

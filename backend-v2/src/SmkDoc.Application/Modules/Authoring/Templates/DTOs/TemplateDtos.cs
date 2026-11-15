@@ -1,4 +1,3 @@
-using System.Globalization;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects;
 
@@ -31,8 +30,13 @@ public sealed record TemplateStudioDto(
     string? SamplePayload,
     string? DataSchema,
     int Version,
-    TemplatePageSettings? PageSettings = null
-);
+    TemplatePageSettings? PageSettings = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] long AggregateVersion = 1
+) : IHasVersion
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    long IHasVersion.Version => AggregateVersion;
+}
 
 /// <summary>
 /// Schema contract DTO for external API consumers and form builders.
@@ -96,15 +100,22 @@ public sealed record CommitDraftResultDto(
 /// Result returned after saving HTML in Monaco Studio.
 /// </summary>
 public sealed record SaveHtmlResultDto(
-    int Version
-) : IHasConcurrencyToken
+    int Version,
+    [property: System.Text.Json.Serialization.JsonIgnore] long AggregateVersion = 1
+) : IHasVersion
 {
-    string? IHasConcurrencyToken.ConcurrencyToken => Version.ToString(CultureInfo.InvariantCulture);
+    [System.Text.Json.Serialization.JsonIgnore]
+    long IHasVersion.Version => AggregateVersion;
 }
 
 /// <summary>
 /// Result returned after rolling back a template version.
 /// </summary>
 public sealed record RollbackVersionResultDto(
-    int Version
-);
+    int Version,
+    [property: System.Text.Json.Serialization.JsonIgnore] long AggregateVersion = 1
+) : IHasVersion
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    long IHasVersion.Version => AggregateVersion;
+}

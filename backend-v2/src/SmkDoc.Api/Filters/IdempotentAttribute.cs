@@ -9,9 +9,10 @@ namespace SmkDoc.Api.Filters;
 /// <summary>
 /// Decorator attribute applied to state-mutating controller actions to enable IETF Idempotency-Key protection.
 /// Supports both Opt-in (default) and Mandatory validation with configurable TTL.
+/// Ordered outer to <see cref="ETagResponseFilter"/> so replay captures emitted <c>ETag</c> headers.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
-public sealed class IdempotentAttribute : Attribute, IFilterFactory
+public sealed class IdempotentAttribute : Attribute, IFilterFactory, IOrderedFilter
 {
     /// <summary>
     /// Cache TTL in hours for completed successful responses. Defaults to 24 hours.
@@ -24,11 +25,14 @@ public sealed class IdempotentAttribute : Attribute, IFilterFactory
     /// </summary>
     public bool Mandatory { get; set; }
 
+    public int Order => -100;
+
     public bool IsReusable => false;
 
     public IFilterMetadata CreateInstance(IServiceProvider serviceProvider)
     {
         var idempotencyStore = serviceProvider.GetRequiredService<IIdempotencyStore>();
+        var executionScope = serviceProvider.GetRequiredService<IIdempotencyExecutionScope>();
         var projectContext = serviceProvider.GetRequiredService<ICurrentProjectContext>();
         var logger = serviceProvider.GetRequiredService<ILogger<IdempotencyFilter>>();
         var jsonOptions = serviceProvider.GetService<IOptions<JsonOptions>>()?.Value.JsonSerializerOptions
@@ -36,6 +40,7 @@ public sealed class IdempotentAttribute : Attribute, IFilterFactory
 
         return new IdempotencyFilter(
             idempotencyStore,
+            executionScope,
             projectContext,
             logger,
             jsonOptions,

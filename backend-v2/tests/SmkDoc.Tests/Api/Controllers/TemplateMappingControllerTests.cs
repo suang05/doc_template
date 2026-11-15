@@ -78,16 +78,16 @@ public sealed class TemplateMappingControllerTests
         {
             new(Guid.NewGuid(), templateId, "company", "req.company", "Company", false, null, null, 1, "direct", null, null, null)
         };
-        _saveMappingsUseCase.ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>())
+        _saveMappingsUseCase.ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(mappings);
 
         var request = new SaveTemplateMappingsRequest([]);
 
         // Act
-        var result = await sut.SaveMappings(templateId, request, CancellationToken.None);
+        var result = await sut.SaveMappings(templateId, 1L, request, CancellationToken.None);
 
         // Assert
-        await _saveMappingsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());
+        await _saveMappingsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateMappingsCommand>(c => c.TemplateId == templateId && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>());
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<FieldMappingResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);

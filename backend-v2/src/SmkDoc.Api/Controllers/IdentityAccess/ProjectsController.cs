@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.Projects;
@@ -29,8 +30,9 @@ public sealed class ProjectsController(
     IUseCase<CreateProjectCommand, ProjectResultDto> createProjectUseCase,
     IUseCase<TransferProjectOwnerCommand> transferOwnerUseCase) : ControllerBase
 {
-    /// <summary>List all projects accessible to the authenticated user with server-side pagination and search.</summary>
+    /// <summary>List all projects accessible to the authenticated user with server-side pagination and search (deprecated: use GET /api/v1/portal/projects).</summary>
     [HttpGet]
+    [DeprecatedEndpoint]
     [ProducesResponseType(typeof(PagedApiResponse<ProjectResultDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListProjects(
         [FromQuery] string? search,
@@ -84,12 +86,14 @@ public sealed class ProjectsController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> TransferOwner(
         [FromRoute] Guid projectId,
+        [FromIfMatch] long expectedVersion,
         [FromBody] TransferProjectOwnerRequest request,
         CancellationToken ct)
     {
-        var command = new TransferProjectOwnerCommand(projectId, request.NewOwnerUserId);
+        var command = new TransferProjectOwnerCommand(projectId, request.NewOwnerUserId, expectedVersion);
         await transferOwnerUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

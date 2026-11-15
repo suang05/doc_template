@@ -10,8 +10,9 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Commands.DryRunDataset
 public sealed class DryRunDatasetUseCase(
     IDataConnectionRepository connectionRepo,
     IDataProtectionService dataProtection,
-    ISqlConnectionValidator sqlValidator,
-    ISqlDriverFactory driverFactory) : IUseCase<DryRunDatasetCommand, DryRunDatasetResultDto>
+    IConnectionHostValidator connectionValidator,
+    ISqlDriverFactory driverFactory,
+    ICurrentProjectContext? projectContext = null) : IUseCase<DryRunDatasetCommand, DryRunDatasetResultDto>
 {
     private const int CommandTimeoutSeconds = 15;
 
@@ -19,6 +20,7 @@ public sealed class DryRunDatasetUseCase(
     {
         string provider;
         string connectionString;
+        ProjectId? tenantProjectId = projectContext?.TryGetProjectId();
 
         if (command.DataConnectionId.HasValue && command.DataConnectionId.Value != Guid.Empty)
         {
@@ -27,6 +29,7 @@ public sealed class DryRunDatasetUseCase(
 
             provider = connection.Provider.Name;
             connectionString = dataProtection.Decrypt(connection.EncryptedConnectionString.Value);
+            tenantProjectId ??= connection.ProjectId;
         }
         else
         {
@@ -44,21 +47,30 @@ public sealed class DryRunDatasetUseCase(
             throw new DomainValidationException("Connection string cannot be empty.");
         }
 
-        // Security perimeter validation (bubbles ForbiddenException and DomainValidationException)
-        await sqlValidator.ValidateConnectionTargetAsync(provider, connectionString, ct);
-        sqlValidator.ValidateReadOnlySql(command.SqlQuery);
+        // Security perimeter validation (bubbles SecurityViolationException, ForbiddenException, DomainValidationException)
+        var resolvedTarget = await connectionValidator.ValidateConnectionTargetAsync(provider, connectionString, tenantProjectId, ct);
+        connectionValidator.ValidateReadOnlySql(command.SqlQuery);
 
         var strategy = driverFactory.GetStrategy(provider);
 
         try
         {
-            var executionResult = await strategy.ExecuteDryRunAsync(
-                connectionString,
-                command.SqlQuery,
-                command.Parameters,
-                command.MaxSampleRows,
-                CommandTimeoutSeconds,
-                ct);
+            var executionResult = resolvedTarget is { PinnedAddresses.Count: > 0 }
+                ? await strategy.ExecuteDryRunWithPinnedTargetAsync(
+                    connectionString,
+                    command.SqlQuery,
+                    command.Parameters,
+                    command.MaxSampleRows,
+                    CommandTimeoutSeconds,
+                    resolvedTarget,
+                    ct)
+                : await strategy.ExecuteDryRunAsync(
+                    connectionString,
+                    command.SqlQuery,
+                    command.Parameters,
+                    command.MaxSampleRows,
+                    CommandTimeoutSeconds,
+                    ct);
 
             return new DryRunDatasetResultDto(
                 Success: true,
@@ -67,7 +79,7 @@ public sealed class DryRunDatasetUseCase(
                 SampleCount: executionResult.SampleRows.Count,
                 ExecutionTimeMs: executionResult.ExecutionTimeMs);
         }
-        catch (Exception ex) when (ex is not (ForbiddenException or DomainValidationException or OperationCanceledException))
+        catch (Exception ex) when (ex is not (ForbiddenException or SecurityViolationException or DomainValidationException or OperationCanceledException))
         {
             // Business SQL engine error (syntax error, missing column, etc.) returns semantic result
             return new DryRunDatasetResultDto(

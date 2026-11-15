@@ -17,6 +17,6 @@ public sealed class GetDataConnectionByIdUseCase(
             c.Provider.Name,
             c.CreatedAt,
             c.UpdatedAt,
-            c.GetConcurrencyToken());
+            c.Version);
     }
 }

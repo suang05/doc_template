@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.Templates;
@@ -37,13 +38,15 @@ public sealed class TemplateDatasetController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> SaveDatasets(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         [FromBody] SaveTemplateDatasetsRequest request,
         CancellationToken ct)
     {
         var items = (request.Datasets ?? []).Select(i => new SaveTemplateDatasetItemDto(i.DatasetId, i.Alias, i.SortOrder)).ToList();
-        var command = new SaveTemplateDatasetsCommand(id, items);
+        var command = new SaveTemplateDatasetsCommand(id, items, expectedVersion);
         var result = await saveDatasetsUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<IEnumerable<TemplateDatasetResultDto>>(result));
     }

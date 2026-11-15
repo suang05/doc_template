@@ -11,6 +11,11 @@ public sealed class DeleteDatasetUseCase(
         var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)
             ?? throw new NotFoundException("Dataset", command.Id);
 
+        if (entity.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         datasetRepo.Remove(entity);
         await unitOfWork.CommitAsync(ct);
     }

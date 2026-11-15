@@ -19,6 +19,11 @@ public sealed class UpdateTemplateDetailsUseCase(
         var template = await templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
+        if (template.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         // 2. Domain Invariants Execution
         var now = timeProvider.GetUtcNow();
         template.UpdateDetails(TemplateName.Create(command.Name), command.Category?.Trim(), now);
@@ -39,7 +44,7 @@ public sealed class UpdateTemplateDetailsUseCase(
             template.CurrentVersion?.FileFormat?.Name,
             template.CreatedAt,
             template.UpdatedAt,
-            template.GetConcurrencyToken()
+            template.Version
         );
     }
 }

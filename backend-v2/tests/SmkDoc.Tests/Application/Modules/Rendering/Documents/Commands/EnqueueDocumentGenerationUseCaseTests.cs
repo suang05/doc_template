@@ -1,6 +1,5 @@
 using System.Text.Json;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
-using SmkDoc.Application.Modules.Rendering.Documents.Models;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Tests.Common.Builders;
@@ -10,7 +9,8 @@ namespace SmkDoc.Tests.Application.Modules.Rendering.Documents.Commands;
 public sealed class EnqueueDocumentGenerationUseCaseTests
 {
     private readonly ITemplateRepository _templateRepo = Substitute.For<ITemplateRepository>();
-    private readonly IDocumentRenderQueue _renderQueue = Substitute.For<IDocumentRenderQueue>();
+    private readonly IDocumentJobRepository _documentJobRepo = Substitute.For<IDocumentJobRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
@@ -20,16 +20,11 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
         _projectContext.IsResolved.Returns(true);
         _projectContext.GetRequiredProjectId().Returns(new ProjectId(projectId));
         _projectContext.CallerIdentity.Returns("erp-integration");
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private EnqueueDocumentGenerationUseCase CreateSut()
-    {
-        return new EnqueueDocumentGenerationUseCase(
-            _templateRepo,
-            _renderQueue,
-            _projectContext,
-            _timeProvider);
-    }
+    private EnqueueDocumentGenerationUseCase CreateSut() =>
+        new(_templateRepo, _documentJobRepo, _unitOfWork, _projectContext, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenProjectContextNotResolved_ShouldThrowTenantContextNotResolvedException()
@@ -65,7 +60,7 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenTemplateValid_ShouldEnqueueJobAndReturnDto()
+    public async Task ExecuteAsync_WhenTemplateValid_ShouldPersistDocumentJobAndReturnDto()
     {
         // Arrange
         var templateId = Guid.NewGuid();
@@ -99,15 +94,17 @@ public sealed class EnqueueDocumentGenerationUseCaseTests
         // Assert
         result.Should().NotBeNull();
         result.Slug.Should().Be("receipt");
-        result.Status.Should().Be(nameof(DocumentJobStatus.Queued));
+        result.Status.Should().Be(DocumentJobStatus.Queued.Name);
         result.CheckStatusUrl.Should().Be($"/api/v1/documents/jobs/{result.JobId}");
 
-        await _renderQueue.Received(1).EnqueueAsync(
+        await _documentJobRepo.Received(1).AddAsync(
             Arg.Is<DocumentJob>(j =>
-                j.Slug == "receipt" &&
+                j.TemplateSlug == "receipt" &&
                 j.Status == DocumentJobStatus.Queued &&
-                j.DocumentRef == "REC-2026-001" &&
-                j.CallerIdentity == "erp-integration"),
+                j.CallerIdentity == "erp-integration" &&
+                j.Items.Count == 1 &&
+                j.Items.First().DocumentRef == "REC-2026-001"),
             Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }

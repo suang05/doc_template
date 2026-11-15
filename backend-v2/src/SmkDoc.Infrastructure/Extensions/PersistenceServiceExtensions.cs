@@ -1,16 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Domain.Interfaces;
-using SmkDoc.Infrastructure.BackgroundWorkers;
 using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Infrastructure.Events;
 using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Interceptors;
+using SmkDoc.Infrastructure.Persistence.Outbox;
 using SmkDoc.Infrastructure.Persistence.Queries;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.Infrastructure.Services.Logging;
+using StackExchange.Redis;
 
 namespace SmkDoc.Infrastructure.Extensions;
 
@@ -20,30 +24,39 @@ public static class PersistenceServiceExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // 1. Ambient Project & Concurrency Context
+        // 1. Ambient Project & Execution Scopes
+        services.AddMemoryCache();
         services.AddScoped<CurrentProjectContext>();
         services.AddScoped<ICurrentProjectContext>(sp => sp.GetRequiredService<CurrentProjectContext>());
         services.AddScoped<ICurrentProjectContextSetter>(sp => sp.GetRequiredService<CurrentProjectContext>());
-        services.AddScoped<IConcurrencyContext, ConcurrencyContext>();
+        services.AddScoped<ITenantScope, TenantScope>();
+        services.AddScoped<IIdempotencyExecutionScope, IdempotencyExecutionScope>();
 
-        // 2. Database & EF Core
+        // 2. Database, NpgsqlDataSource Pool & EF Core RLS / Outbox Interceptors
         string connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? configuration["DATABASE_URL"]
             ?? throw new InvalidOperationException(
                 "Database connection string is required. Set ConnectionStrings:DefaultConnection or DATABASE_URL.");
 
+        services.AddSingleton(_ => new NpgsqlDataSourceBuilder(connectionString).Build());
+
+        services.AddScoped<TenantDbConnectionInterceptor>();
+        services.AddScoped<TenantDbTransactionInterceptor>();
         services.AddScoped<TenantSecuritySaveChangesInterceptor>();
-        services.AddScoped<ConcurrencySaveChangesInterceptor>();
+        services.AddScoped<OutboxSaveChangesInterceptor>();
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
-            options.UseNpgsql(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure(
+            var dataSource = sp.GetRequiredService<NpgsqlDataSource>();
+            options.UseNpgsql(dataSource, sqlOptions => sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(10),
                 errorCodesToAdd: null));
             options.AddInterceptors(
+                sp.GetRequiredService<TenantDbConnectionInterceptor>(),
+                sp.GetRequiredService<TenantDbTransactionInterceptor>(),
                 sp.GetRequiredService<TenantSecuritySaveChangesInterceptor>(),
-                sp.GetRequiredService<ConcurrencySaveChangesInterceptor>());
+                sp.GetRequiredService<OutboxSaveChangesInterceptor>());
         });
 
         // 3. Repositories
@@ -59,19 +72,36 @@ public static class PersistenceServiceExtensions
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<IGenerationLogRepository, GenerationLogRepository>();
         services.AddScoped<IGenerationLogMetricsRepository, GenerationLogMetricsRepository>();
+        services.AddScoped<IProjectQuotaRepository, ProjectQuotaRepository>();
+        services.AddScoped<IFontRepository, FontRepository>();
+        services.AddScoped<IBreakGlassGrantRepository, BreakGlassGrantRepository>();
+        services.AddScoped<IDocumentJobRepository, DocumentJobRepository>();
 
-        // 4. Query Services & Units of Work
+        // 4. Query Services, OHS Readers, Perimeter Resolver & Units of Work
         services.AddScoped<IGenerationLogQueryService, GenerationLogQueryService>();
         services.AddSingleton<IGenerationLogQueue, ChannelGenerationLogQueue>();
-        services.AddHostedService<GenerationLogBatchWorker>();
         services.AddScoped<IUserWorkspaceQueryService, UserWorkspaceQueryService>();
         services.AddScoped<IProjectQueryService, ProjectQueryService>();
         services.AddScoped<ITemplateQueryService, TemplateQueryService>();
-        services.AddScoped<ITenantResolutionPort, TenantResolutionAdapter>();
+
+        services.AddScoped<IProjectStatusReader, ProjectStatusReader>();
+        services.AddScoped<IQuotaReader, QuotaReader>();
+        services.AddScoped<IFontReadModel, FontReadModel>();
+        services.AddScoped<IBreakGlassGrantReader, BreakGlassGrantReader>();
+        services.AddScoped<IDocumentJobReadModel, DocumentJobReadModel>();
+
+        services.AddSingleton(sp => new TenantResolutionResolver(
+            sp.GetRequiredService<IMemoryCache>(),
+            sp.GetRequiredService<ILogger<TenantResolutionResolver>>(),
+            sp.GetService<NpgsqlDataSource>(),
+            sp.GetService<IServiceScopeFactory>(),
+            sp.GetService<IConnectionMultiplexer>()));
+        services.AddSingleton<ITenantResolutionResolver>(sp => sp.GetRequiredService<TenantResolutionResolver>());
+        services.AddSingleton<ITenantResolutionPort>(sp => sp.GetRequiredService<TenantResolutionResolver>());
+
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;
     }
 }
-

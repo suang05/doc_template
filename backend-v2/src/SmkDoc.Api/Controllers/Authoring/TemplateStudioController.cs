@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Application.Common.Interfaces;
@@ -60,12 +61,20 @@ public sealed class TemplateStudioController(
     [HttpPut("html")]
     [ProducesResponseType(typeof(ApiResponse<SaveHtmlResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> SaveHtml(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         [FromBody] SaveHtmlRequest request,
         CancellationToken ct)
     {
-        var command = new SaveTemplateHtmlCommand(id, request.Html, request.SamplePayload, request.ChangeNote, request.PageSettings);
+        var command = new SaveTemplateHtmlCommand(
+            id,
+            request.Html,
+            request.SamplePayload,
+            request.ChangeNote,
+            request.PageSettings,
+            expectedVersion);
         var result = await saveHtmlUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<SaveHtmlResultDto>(result));
     }

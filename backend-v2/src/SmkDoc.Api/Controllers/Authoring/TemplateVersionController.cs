@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.RollbackTemplateVersion;
@@ -32,12 +33,15 @@ public sealed class TemplateVersionController(
     /// </summary>
     [HttpPost("rollback/{version:int}")]
     [ProducesResponseType(typeof(ApiResponse<RollbackVersionResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> RollbackVersion(
         [FromRoute] Guid id,
         [FromRoute] int version,
+        [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
-        var command = new RollbackTemplateVersionCommand(id, version);
+        var command = new RollbackTemplateVersionCommand(id, version, expectedVersion);
         var result = await rollbackUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<RollbackVersionResultDto>(result));
     }

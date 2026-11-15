@@ -1,3 +1,3 @@
 namespace SmkDoc.Application.Modules.Authoring.Templates.Commands.DeactivateTemplate;
 
-public sealed record DeactivateTemplateCommand(Guid TemplateId);
+public sealed record DeactivateTemplateCommand(Guid TemplateId, long ExpectedVersion = 1);

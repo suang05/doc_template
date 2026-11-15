@@ -24,6 +24,11 @@ public sealed class SetUserStatusUseCase(
         var user = await userRepo.GetByIdAsync(uId, ct)
             ?? throw new NotFoundException("User not found.");
 
+        if (user.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         var now = timeProvider.GetUtcNow();
         await ApplyStatusChangeAsync(user, command.IsActive, now, ct);
 
@@ -83,7 +88,7 @@ public sealed class SetUserStatusUseCase(
             roleName,
             user.IsActive,
             user.CreatedAt,
-            user.GetConcurrencyToken());
+            user.Version);
 
     private async Task<string> ResolveRoleNameAsync(UserId userId, CancellationToken ct)
     {

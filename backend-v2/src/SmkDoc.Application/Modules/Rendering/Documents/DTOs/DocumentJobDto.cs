@@ -1,10 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
-using SmkDoc.Application.Modules.Rendering.Documents.Models;
+using SmkDoc.Domain.Entities;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.DTOs;
 
 /// <summary>
-/// DTO representing the state of an asynchronous document generation job.
+/// Legacy DTO representing the state of an asynchronous document generation job (preserved for Phase 4 A1 coexistence).
 /// </summary>
 public sealed record DocumentJobDto(
     Guid JobId,
@@ -26,19 +26,39 @@ public sealed record DocumentJobDto(
     [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "JSON/OpenAPI wire DTO contract (supports relative API paths and pre-signed URLs).")]
     public string? DownloadUrl { get; init; } = DownloadUrl;
 
-    public static DocumentJobDto FromJob(DocumentJob job)
+    public static DocumentJobDto FromDomainJob(DocumentJob job)
     {
+        ArgumentNullException.ThrowIfNull(job);
+
         return new DocumentJobDto(
-            job.JobId,
-            job.Slug,
-            job.Status.ToString(),
+            job.Id.Value,
+            job.TemplateSlug,
+            job.Status.Name,
             job.CreatedAt,
             job.StartedAt,
             job.CompletedAt,
-            $"/api/v1/documents/jobs/{job.JobId}",
-            job.Result?.Url,
-            job.ErrorMessage,
-            job.Result);
+            $"/api/v1/documents/jobs/{job.Id.Value}",
+            job.Status == Domain.Enums.DocumentJobStatus.Succeeded && !string.IsNullOrEmpty(job.ResultStorageKey)
+                ? $"/api/v1/document-jobs/{job.Id.Value}/result"
+                : null,
+            job.LastErrorMessage,
+            null);
+    }
+
+    public static DocumentJobDto FromReadModel(DocumentJobResultDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        return new DocumentJobDto(
+            dto.JobId,
+            dto.TemplateSlug,
+            dto.Status,
+            dto.CreatedAt,
+            dto.StartedAt,
+            dto.CompletedAt,
+            $"/api/v1/documents/jobs/{dto.JobId}",
+            dto.DownloadUrl,
+            dto.ErrorMessage,
+            null);
     }
 }
-

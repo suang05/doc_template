@@ -78,12 +78,12 @@ public sealed class ProjectApiKeysControllerTests
         var controller = CreateSut();
 
         // Act
-        var result = await controller.RevokeKey(projId, keyId, CancellationToken.None);
+        var result = await controller.RevokeKey(projId, keyId, 1, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
         await _revokeUseCase.Received(1).ExecuteAsync(
-            Arg.Is<RevokeApiKeyCommand>(c => c.Id == keyId),
+            Arg.Is<RevokeApiKeyCommand>(c => c.Id == keyId && c.ExpectedVersion == 1),
             Arg.Any<CancellationToken>());
     }
 }

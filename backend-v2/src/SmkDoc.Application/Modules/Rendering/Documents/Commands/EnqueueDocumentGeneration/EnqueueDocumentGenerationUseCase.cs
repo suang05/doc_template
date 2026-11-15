@@ -1,17 +1,20 @@
+using System.Text.Json;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;
-using SmkDoc.Application.Modules.Rendering.Documents.Models;
+using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.Enums;
 
 namespace SmkDoc.Application.Modules.Rendering.Documents.Commands.EnqueueDocumentGeneration;
 
 public sealed class EnqueueDocumentGenerationUseCase(
     ITemplateRepository templateRepo,
-    IDocumentRenderQueue renderQueue,
+    IDocumentJobRepository documentJobRepo,
+    IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider) : IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto>
+    TimeProvider timeProvider,
+    IQuotaReader? quotaReader = null) : IUseCase<EnqueueDocumentGenerationCommand, DocumentJobDto>
 {
     public async Task<DocumentJobDto> ExecuteAsync(EnqueueDocumentGenerationCommand command, CancellationToken ct)
     {
-        // Step 1: Parse & Guard (Fail-fast at line 1 via Smart Context Property)
         var projectId = projectContext.GetRequiredProjectId();
 
         var template = await templateRepo.GetBySlugWithDetailsAsync(command.Slug, ct);
@@ -22,27 +25,34 @@ public sealed class EnqueueDocumentGenerationUseCase(
 
         _ = template.GetPublishedVersion();
 
+        if (quotaReader is not null)
+        {
+            var quota = await quotaReader.GetQuotaForProjectAsync(projectId, ct);
+            if (quota.MaxBatchItems < 1)
+            {
+                throw new BusinessRuleViolationException("Project batch quota does not permit enqueuing document jobs.", ErrorCodes.QuotaExceeded);
+            }
+        }
+
         var now = timeProvider.GetUtcNow();
-        var jobId = Guid.CreateVersion7();
-        string payloadJson = command.Payload.ValueKind is System.Text.Json.JsonValueKind.Undefined or System.Text.Json.JsonValueKind.Null
+        var outputFormat = OutputFormat.FromDisplayName<OutputFormat>(command.OutputFormat.Trim());
+        string payloadJson = command.Payload.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
             ? "{}"
             : command.Payload.GetRawText();
 
-        var job = new DocumentJob(
-            jobId,
-            projectId.Value,
-            projectContext.CallerIdentity ?? "m2m-client",
+        var job = DocumentJob.Create(
+            projectId,
+            template.Id,
             command.Slug,
-            payloadJson,
-            command.OutputFormat,
-            command.DocumentRef,
-            command.ChangeNote,
-            command.SkipValidation,
+            template.CurrentVersionId,
+            projectContext.CallerIdentity ?? "m2m-client",
+            outputFormat,
+            [(payloadJson, command.DocumentRef)],
             now);
 
-        await renderQueue.EnqueueAsync(job, ct);
+        await documentJobRepo.AddAsync(job, ct);
+        await unitOfWork.CommitAsync(ct);
 
-        return DocumentJobDto.FromJob(job);
+        return DocumentJobDto.FromDomainJob(job);
     }
 }
-

@@ -50,7 +50,7 @@ public sealed class ProjectsControllerTests
     {
         // Arrange
         var pagedDto = new ProjectPagedResultDto(
-            [new ProjectResultDto(Guid.NewGuid(), "Project Alpha", "project-alpha", true, DateTimeOffset.UtcNow, null, null, "50001")],
+            [new ProjectResultDto(Guid.NewGuid(), "Project Alpha", "project-alpha", true, DateTimeOffset.UtcNow, null, null, 1L)],
             TotalCount: 1,
             Page: 1,
             PageSize: 20);
@@ -87,7 +87,7 @@ public sealed class ProjectsControllerTests
             DateTimeOffset.UtcNow,
             null,
             null,
-            "54321");
+            1L);
 
         _getByIdUseCase.ExecuteAsync(Arg.Any<GetProjectByIdQuery>(), Arg.Any<CancellationToken>())
             .Returns(projectDto);
@@ -120,7 +120,7 @@ public sealed class ProjectsControllerTests
             DateTimeOffset.UtcNow,
             "read-key",
             "write-key",
-            "10001");
+            1L);
 
         _createUseCase.ExecuteAsync(Arg.Any<CreateProjectCommand>(), Arg.Any<CancellationToken>())
             .Returns(createdDto);
@@ -158,12 +158,12 @@ public sealed class ProjectsControllerTests
         var request = new TransferProjectOwnerRequest(newOwnerId);
 
         // Act
-        var result = await controller.TransferOwner(projectId, request, CancellationToken.None);
+        var result = await controller.TransferOwner(projectId, 1L, request, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
         await _transferOwnerUseCase.Received(1).ExecuteAsync(
-            Arg.Is<TransferProjectOwnerCommand>(c => c.ProjectId == projectId && c.NewOwnerUserId == newOwnerId),
+            Arg.Is<TransferProjectOwnerCommand>(c => c.ProjectId == projectId && c.NewOwnerUserId == newOwnerId && c.ExpectedVersion == 1L),
             Arg.Any<CancellationToken>());
     }
 }

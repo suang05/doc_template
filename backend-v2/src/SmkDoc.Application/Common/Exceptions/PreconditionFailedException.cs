@@ -13,5 +13,11 @@ public sealed class PreconditionFailedException : Exception
     {
         ErrorCode = errorCode;
     }
+
+    public static PreconditionFailedException VersionMismatch() =>
+        new("The resource has been modified by another request. Fetch the latest ETag and retry.", ErrorCodes.PreconditionFailed);
+
+    public static PreconditionFailedException PreconditionRequired() =>
+        new("An If-Match header with a strong version ETag (e.g. \"v1\") is required for this mutation.", ErrorCodes.PreconditionRequired);
 }
 

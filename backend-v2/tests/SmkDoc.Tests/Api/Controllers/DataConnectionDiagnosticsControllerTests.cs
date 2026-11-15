@@ -7,6 +7,7 @@ using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
 using SmkDoc.Api.Controllers.Integration;
+using SmkDoc.Application.Modules.Integration.DataConnections.Commands.CheckSavedDataConnection;
 using SmkDoc.Application.Modules.Integration.DataConnections.Commands.TestDataConnection;
 
 namespace SmkDoc.Tests.Api.Controllers;
@@ -14,10 +15,11 @@ namespace SmkDoc.Tests.Api.Controllers;
 public sealed class DataConnectionDiagnosticsControllerTests
 {
     private readonly IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto> _testUseCase = Substitute.For<IUseCase<TestDataConnectionCommand, TestDataConnectionResultDto>>();
+    private readonly IUseCase<CheckSavedDataConnectionCommand, TestDataConnectionResultDto> _checkSavedUseCase = Substitute.For<IUseCase<CheckSavedDataConnectionCommand, TestDataConnectionResultDto>>();
 
     private DataConnectionDiagnosticsController CreateSut()
     {
-        var controller = new DataConnectionDiagnosticsController(_testUseCase)
+        var controller = new DataConnectionDiagnosticsController(_testUseCase, _checkSavedUseCase)
         {
             ControllerContext = new ControllerContext
             {
@@ -45,6 +47,33 @@ public sealed class DataConnectionDiagnosticsControllerTests
         var rateLimitAttr = testMethod!.GetCustomAttribute<EnableRateLimitingAttribute>();
         rateLimitAttr.Should().NotBeNull();
         rateLimitAttr!.PolicyName.Should().Be("test-conn");
+
+        var checkSavedMethod = type.GetMethod(nameof(DataConnectionDiagnosticsController.CheckSavedConnection));
+        var checkSavedRateLimit = checkSavedMethod!.GetCustomAttribute<EnableRateLimitingAttribute>();
+        checkSavedRateLimit.Should().NotBeNull();
+        checkSavedRateLimit!.PolicyName.Should().Be("connectivity-check");
+    }
+
+    [Fact]
+    public async Task CheckSavedConnection_WhenInvoked_ShouldExecuteSavedCheckAndReturn200Ok()
+    {
+        // Arrange
+        var sut = CreateSut();
+        var connectionId = Guid.NewGuid();
+        _checkSavedUseCase.ExecuteAsync(
+                Arg.Is<CheckSavedDataConnectionCommand>(c => c.Id == connectionId),
+                Arg.Any<CancellationToken>())
+            .Returns(new TestDataConnectionResultDto(true, "Connection successful."));
+
+        // Act
+        var result = await sut.CheckSavedConnection(connectionId, CancellationToken.None);
+
+        // Assert
+        var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
+        var body = okResult.Value.Should().BeOfType<ApiResponse<TestDataConnectionResultDto>>().Subject;
+        body.Data.Success.Should().BeTrue();
+        body.Data.Message.Should().Be("Connection successful.");
     }
 
     [Fact]

@@ -75,7 +75,7 @@ public sealed class TemplateDatasetControllerTests
             new(Guid.NewGuid(), templateId, datasetId, "CustData", "Customer Dataset", 1)
         };
 
-        _saveDatasetsUseCase.ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>())
+        _saveDatasetsUseCase.ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(datasets);
 
         var request = new SaveTemplateDatasetsRequest([
@@ -83,10 +83,10 @@ public sealed class TemplateDatasetControllerTests
         ]);
 
         // Act
-        var result = await sut.SaveDatasets(templateId, request, CancellationToken.None);
+        var result = await sut.SaveDatasets(templateId, 1L, request, CancellationToken.None);
 
         // Assert
-        await _saveDatasetsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId), Arg.Any<CancellationToken>());
+        await _saveDatasetsUseCase.Received(1).ExecuteAsync(Arg.Is<SaveTemplateDatasetsCommand>(c => c.TemplateId == templateId && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>());
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = okResult.Value.Should().BeOfType<ApiResponse<IEnumerable<TemplateDatasetResultDto>>>().Subject;
         body.Data.Should().HaveCount(1);

@@ -18,6 +18,11 @@ public sealed class SaveTemplateDatasetsUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
+        if (template.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         var now = timeProvider.GetUtcNow();
         var datasets = command.Items.Select(item =>
             TemplateDataset.Create(template.Id, new DatasetId(item.DatasetId), DatasetAlias.Create(item.Alias), item.SortOrder, now)

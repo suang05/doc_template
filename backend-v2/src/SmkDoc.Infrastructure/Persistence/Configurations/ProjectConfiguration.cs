@@ -21,6 +21,9 @@ public sealed class ProjectConfiguration : IEntityTypeConfiguration<Project>
             .HasConversion(n => n.Value, v => ProjectName.Create(v));
         builder.Property(e => e.Slug).IsRequired().HasMaxLength(100)
             .HasConversion(Converters.DomainValueConverters.ProjectSlugConverter);
+        builder.Property(e => e.AllowedEgressCidrs)
+            .HasMaxLength(2000)
+            .IsRequired(false);
         builder.Property(e => e.CreatedAt).HasDefaultValueSql("NOW()");
 
         builder.HasOne<Company>()

@@ -96,6 +96,36 @@ public sealed class EfCoreModelParityTests
         tenantCallerTimeIndex!.IsDescending.Should().Equal(false, false, true);
     }
 
+    [Fact]
+    public void Phase4Entities_OutboxIdempotencyGovernanceAndJobQueue_MustBeMapped()
+    {
+        using var context = CreateDesignTimeDbContext();
+        var model = context.GetService<IDesignTimeModel>().Model;
+
+        var expectedTables = new Dictionary<Type, string>
+        {
+            [typeof(SmkDoc.Infrastructure.Persistence.Outbox.OutboxMessage)] = "outbox_messages",
+            [typeof(SmkDoc.Infrastructure.Persistence.Idempotency.IdempotencyKeyEntity)] = "idempotency_keys",
+            [typeof(SmkDoc.Domain.TenantManagement.ProjectQuota)] = "project_quotas",
+            [typeof(SmkDoc.Domain.TenantManagement.Font)] = "fonts",
+            [typeof(SmkDoc.Domain.TenantManagement.BreakGlassGrant)] = "break_glass_grants",
+            [typeof(DocumentJob)] = "document_jobs",
+            [typeof(DocumentJobItem)] = "document_job_items"
+        };
+
+        foreach (var (entityClrType, expectedTableName) in expectedTables)
+        {
+            var entityType = model.FindEntityType(entityClrType);
+            entityType.Should().NotBeNull($"{entityClrType.Name} must be mapped in AppDbContext");
+            entityType!.GetTableName().Should().Be(expectedTableName);
+        }
+
+        var jobItemEntity = model.FindEntityType(typeof(DocumentJobItem))!;
+        var jobFk = jobItemEntity.GetForeignKeys().Single(fk => fk.PrincipalEntityType.ClrType == typeof(DocumentJob));
+        jobFk.Properties.Single().Name.Should().Be(nameof(DocumentJobItem.DocumentJobId));
+        jobFk.DeleteBehavior.Should().Be(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+    }
+
     private static string FormatOperation(MigrationOperation op) => op switch
     {
         AddColumnOperation c => $"AddColumn({c.Table}.{c.Name}:{c.ColumnType})",

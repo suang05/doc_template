@@ -1,16 +1,17 @@
 namespace SmkDoc.Application.Common.Interfaces;
 
 /// <summary>
-/// Lifecycle status for an idempotent operation.
+/// Lifecycle status for a durable idempotency record.
 /// </summary>
 public enum IdempotencyStatus
 {
     InFlight,
-    Completed
+    Completed,
+    Failed
 }
 
 /// <summary>
-/// Represents an idempotency record cached for safe replay or concurrency control.
+/// Represents a durable idempotency record stored for safe replay or concurrency control.
 /// </summary>
 public sealed record IdempotencyRecord(
     string CacheKey,
@@ -19,8 +20,37 @@ public sealed record IdempotencyRecord(
     int? StatusCode,
     string? ResponseJson,
     IReadOnlyDictionary<string, string>? Headers,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    Guid? ResultResourceId = null,
+    DateTimeOffset? LockedUntil = null
 );
+
+/// <summary>
+/// Structured input for atomic idempotency key acquisition.
+/// </summary>
+public sealed record IdempotencyAcquisitionRequest(
+    Guid? ProjectId,
+    string CredentialId,
+    string Scope,
+    string IdempotencyKey,
+    string RequestFingerprint,
+    TimeSpan InFlightTtl,
+    TimeSpan CompletedTtl);
+
+/// <summary>
+/// Structured input for persisting the completed outcome of an idempotent operation.
+/// </summary>
+public sealed record IdempotencyCompletionRequest(
+    Guid? ProjectId,
+    string CredentialId,
+    string Scope,
+    string IdempotencyKey,
+    string RequestFingerprint,
+    int StatusCode,
+    string ResponseJson,
+    IReadOnlyDictionary<string, string>? Headers,
+    TimeSpan CompletedTtl,
+    Guid? ResultResourceId = null);
 
 /// <summary>
 /// Result of an atomic idempotency key acquisition attempt.
@@ -36,33 +66,31 @@ public sealed record IdempotencyAcquisitionResult(
 }
 
 /// <summary>
-/// Decoupled storage abstraction for IETF Idempotency-Key management.
+/// Decoupled durable storage abstraction for IETF Idempotency-Key management.
 /// </summary>
 public interface IIdempotencyStore
 {
     /// <summary>
-    /// Atomically acquires an in-flight execution lock or returns the existing record if one is already present.
+    /// Atomically acquires an in-flight execution lock or returns the existing record if one is active or completed.
     /// </summary>
     Task<IdempotencyAcquisitionResult> TryAcquireOrGetAsync(
-        string cacheKey,
-        string requestFingerprint,
-        TimeSpan inFlightTtl,
+        IdempotencyAcquisitionRequest request,
         CancellationToken ct);
 
     /// <summary>
-    /// Saves the final successful HTTP response against the idempotency key for future replays.
+    /// Saves the final successful response against the durable idempotency key for future replays.
     /// </summary>
     Task SaveCompletedAsync(
-        string cacheKey,
-        string requestFingerprint,
-        int statusCode,
-        string responseJson,
-        IReadOnlyDictionary<string, string>? headers,
-        TimeSpan completedTtl,
+        IdempotencyCompletionRequest request,
         CancellationToken ct);
 
     /// <summary>
-    /// Removes the idempotency key (used on failure rollback to permit client retries).
+    /// Releases an in-flight idempotency key on unhandled failure so clients can safely retry.
     /// </summary>
-    Task RemoveAsync(string cacheKey, CancellationToken ct);
+    Task RemoveAsync(
+        Guid? projectId,
+        string credentialId,
+        string scope,
+        string idempotencyKey,
+        CancellationToken ct);
 }

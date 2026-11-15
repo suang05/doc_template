@@ -16,6 +16,6 @@ public sealed class GetProjectByIdUseCase(IProjectRepository projectRepo) : IUse
             project.Slug.Value,
             project.IsActive,
             project.CreatedAt,
-            ConcurrencyToken: project.GetConcurrencyToken());
+            Version: project.Version);
     }
 }

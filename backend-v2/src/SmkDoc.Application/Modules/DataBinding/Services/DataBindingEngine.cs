@@ -21,8 +21,12 @@ public sealed class DataBindingEngine(
     IDatasetBatchExecutor datasetExecutor,
     IMathExpressionResolver mathResolver,
     IJsonSchemaValidationService schemaValidation,
-    TimeProvider timeProvider) : IDataBindingEngine
+    TimeProvider timeProvider,
+    IEnumerable<ILocalizedDataFormatter>? localizedFormatters = null) : IDataBindingEngine
 {
+    private readonly ILocalizedDataFormatter? _thaiFormatter =
+        localizedFormatters?.FirstOrDefault(f => string.Equals(f.CultureCode, "th-TH", StringComparison.OrdinalIgnoreCase));
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
@@ -94,7 +98,7 @@ public sealed class DataBindingEngine(
         return dict;
     }
 
-    private static void BindJsonMappings(JsonElement root, IReadOnlyList<FieldMapping> mappings, Dictionary<string, object?> dict)
+    private void BindJsonMappings(JsonElement root, IReadOnlyList<FieldMapping> mappings, Dictionary<string, object?> dict)
     {
         foreach (var m in mappings.Where(m => m.DataSourceType == DataSourceType.Json && string.IsNullOrWhiteSpace(m.MathExpression)).OrderBy(m => m.SortOrder))
         {
@@ -102,7 +106,7 @@ public sealed class DataBindingEngine(
         }
     }
 
-    private static void BindSqlMappings(
+    private void BindSqlMappings(
         IReadOnlyDictionary<string, JsonElement> aliasResults,
         IReadOnlyList<FieldMapping> mappings,
         Dictionary<string, object?> dict)
@@ -118,7 +122,7 @@ public sealed class DataBindingEngine(
         }
     }
 
-    private static void ApplySqlMapping(
+    private void ApplySqlMapping(
         FieldMapping m,
         IReadOnlyDictionary<string, JsonElement> aliasResults,
         Dictionary<string, object?> dict)
@@ -151,7 +155,7 @@ public sealed class DataBindingEngine(
         }
     }
 
-    private static string FinalizeValue(string? val, FieldMapping mapping)
+    private string FinalizeValue(string? val, FieldMapping mapping)
     {
         if (string.IsNullOrWhiteSpace(val)) val = mapping.DefaultValue;
 
@@ -159,7 +163,11 @@ public sealed class DataBindingEngine(
             throw new DomainValidationException($"Required field '{mapping.Label}' ({mapping.Placeholder}) is missing.");
 
         if (!string.IsNullOrWhiteSpace(val) && !string.IsNullOrWhiteSpace(mapping.Transform))
-            val = ThaiDataTransformer.Transform(val, mapping.Transform);
+        {
+            val = _thaiFormatter is not null
+                ? _thaiFormatter.Transform(val, mapping.Transform)
+                : ThaiDataTransformer.Transform(val, mapping.Transform);
+        }
 
         return val ?? string.Empty;
     }

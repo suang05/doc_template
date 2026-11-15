@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -16,11 +15,8 @@ public sealed class ListApiKeysUseCase(
         return keys.Select(ToMaskedDto).ToList();
     }
 
-    [SuppressMessage("Globalization", "CA1308:Normalize strings to uppercase", Justification = "Masked API key prefix uses canonical lowercase caller app identifier.")]
     private static ApiKeyResultDto ToMaskedDto(Domain.Entities.ApiKey k)
     {
-        var suffix = k.KeyHash.Value.Length >= 4 ? k.KeyHash.Value[^4..] : "xxxx";
-        var masked = $"smk_{k.CallerApp.ToLowerInvariant()}_****{suffix}";
         return new ApiKeyResultDto(
             k.Id.Value,
             k.Name.Value,
@@ -29,7 +25,7 @@ public sealed class ListApiKeysUseCase(
             k.LastUsedAt,
             k.CreatedAt,
             k.Scope.Name,
-            masked,
-            ConcurrencyToken: k.GetConcurrencyToken());
+            k.GetMaskedKey(),
+            Version: k.Version);
     }
 }

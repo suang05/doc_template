@@ -2,6 +2,7 @@ using SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Security.Helpers;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Enums;
+using SmkDoc.Domain.TenantManagement;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 
@@ -16,7 +17,9 @@ public sealed class CreateProjectUseCase(
     IUserProjectRoleRepository userRoleRepo,
     IApiKeyRepository apiKeyRepo,
     IUnitOfWork unitOfWork,
-    TimeProvider timeProvider) : IUseCase<CreateProjectCommand, ProjectResultDto>
+    TimeProvider timeProvider,
+    IProjectQuotaRepository? projectQuotaRepo = null,
+    IApiKeyCredentialGenerator? credentialGenerator = null) : IUseCase<CreateProjectCommand, ProjectResultDto>
 {
     public async Task<ProjectResultDto> ExecuteAsync(CreateProjectCommand command, CancellationToken ct)
     {
@@ -38,6 +41,12 @@ public sealed class CreateProjectUseCase(
 
         var role = UserProjectRole.Create(new UserId(command.UserId), project.Id, RoleType.Admin, now);
         await userRoleRepo.AddAsync(role, ct);
+
+        if (projectQuotaRepo is not null)
+        {
+            await projectQuotaRepo.AddAsync(ProjectQuota.CreateDefault(project.Id, now), ct);
+        }
+
         return project;
     }
 
@@ -49,7 +58,7 @@ public sealed class CreateProjectUseCase(
             project.CreatedAt,
             readKey,
             writeKey,
-            ConcurrencyToken: project.GetConcurrencyToken());
+            Version: project.Version);
 
     private async Task EnsureUniqueSlugAsync(string slug, CancellationToken ct)
     {
@@ -81,6 +90,24 @@ public sealed class CreateProjectUseCase(
         DateTimeOffset now,
         CancellationToken ct)
     {
+        if (credentialGenerator is not null)
+        {
+            var minted = credentialGenerator.MintLiveKey();
+            var structuredKey = ApiKey.IssueStructured(
+                projectId,
+                ApiKeyName.Create(name),
+                callerApp,
+                minted.KeyPrefix,
+                minted.KeyId,
+                minted.KeySuffix,
+                minted.SecretHash.ToArray(),
+                ExpirationPolicy.Never,
+                now,
+                scope);
+            await apiKeyRepo.AddAsync(structuredKey, ct);
+            return minted.PlainTextKey;
+        }
+
         var plain = ApiKeyGenerator.GenerateSecret(prefix);
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(plain));
         var key = ApiKey.Issue(projectId, ApiKeyName.Create(name), callerApp, hash, ExpirationPolicy.Never, now, scope);

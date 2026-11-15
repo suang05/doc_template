@@ -45,6 +45,8 @@ public static class ErrorCodes
     // Domain Subcodes
     public const string InactiveTemplate = "INACTIVE_TEMPLATE";
     public const string TemplateVersionNotFound = "TEMPLATE_VERSION_NOT_FOUND";
+    public const string QuotaExceeded = "QUOTA_EXCEEDED";
+    public const string TenantReassignmentProhibited = "TENANT_REASSIGNMENT_PROHIBITED";
 
     // Fallback
     public const string InternalError = "INTERNAL_ERROR";

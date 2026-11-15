@@ -83,7 +83,7 @@ public sealed class RollbackTemplateVersionUseCaseTests
             .Returns(true);
 
         // Act
-        var result = await CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1), CancellationToken.None);
+        var result = await CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1, template.Version), CancellationToken.None);
 
         // Assert
         result.Version.Should().Be(3);
@@ -132,7 +132,7 @@ public sealed class RollbackTemplateVersionUseCaseTests
             .Returns(false);
 
         // Act
-        Func<Task> act = () => CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1), CancellationToken.None);
+        Func<Task> act = () => CreateSut().ExecuteAsync(new RollbackTemplateVersionCommand(template.Id.Value, 1, template.Version), CancellationToken.None);
 
         // Assert
         await act.Should().ThrowAsync<NotFoundException>()

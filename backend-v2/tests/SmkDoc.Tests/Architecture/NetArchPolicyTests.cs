@@ -35,17 +35,9 @@ public sealed class NetArchPolicyTests
 
     private static readonly HashSet<string> Phase3MissingCancellationTokenAllowList = new(StringComparer.Ordinal);
 
-    private static readonly HashSet<string> Phase3OutboxDispatcherCallerAllowList = new(StringComparer.Ordinal)
-    {
-        "SmkDoc.Infrastructure.Extensions.PersistenceServiceExtensions",
-        "SmkDoc.Infrastructure.Persistence.Repositories.UnitOfWork"
-    };
+    private static readonly HashSet<string> Phase3OutboxDispatcherCallerAllowList = new(StringComparer.Ordinal);
 
-    private static readonly HashSet<string> Phase3ArchetypeBContextAllowList = new(StringComparer.Ordinal)
-    {
-        // GetDocumentJobUseCase retains ICurrentProjectContext until Phase 4 PostgreSQL document_jobs migration
-        "SmkDoc.Application.Modules.Rendering.Documents.Queries.GetDocumentJob.GetDocumentJobUseCase"
-    };
+    private static readonly HashSet<string> Phase3ArchetypeBContextAllowList = new(StringComparer.Ordinal);
 
     [Fact]
     public void Domain_NetArchTest_MustNotDependOnOuterLayersOrFrameworks()
@@ -92,7 +84,7 @@ public sealed class NetArchPolicyTests
             .And()
             .DoNotHaveName("Program")
             .ShouldNot()
-            .HaveDependencyOnAny("SmkDoc.Domain.Entities", "SmkDoc.Infrastructure")
+            .HaveDependencyOnAny("SmkDoc.Domain.Entities", "SmkDoc.Domain.TenantManagement", "SmkDoc.Infrastructure")
             .GetResult();
 
         var unexpected = (result.FailingTypeNames ?? [])
@@ -100,7 +92,7 @@ public sealed class NetArchPolicyTests
             .ToList();
 
         unexpected.Should().BeEmpty(
-            "Api types outside composition root (Extensions/Program) must not reference Domain.Entities or Infrastructure");
+            "Api types outside composition root (Extensions/Program) must not reference Domain.Entities, Domain.TenantManagement, or Infrastructure");
     }
 
     [Fact]

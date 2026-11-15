@@ -62,7 +62,7 @@ public sealed class DataConnectionsControllerTests
         var sut = CreateSut();
         var dtos = new List<DataConnectionResultDto>
         {
-            new(Guid.NewGuid(), "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null, "12345")
+            new(Guid.NewGuid(), "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null, 1L)
         };
         _listUseCase.ExecuteAsync(Arg.Any<ListDataConnectionsQuery>(), Arg.Any<CancellationToken>())
             .Returns(dtos);
@@ -82,7 +82,7 @@ public sealed class DataConnectionsControllerTests
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        var dto = new DataConnectionResultDto(id, "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null, "12345");
+        var dto = new DataConnectionResultDto(id, "ERP DB", "PostgreSQL", DateTimeOffset.UtcNow, null, 1L);
         _getByIdUseCase.ExecuteAsync(Arg.Is<GetDataConnectionByIdQuery>(q => q.Id == id), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -117,7 +117,7 @@ public sealed class DataConnectionsControllerTests
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        var dto = new DataConnectionResultDto(id, "New Connection", "PostgreSQL", DateTimeOffset.UtcNow, null, "9999");
+        var dto = new DataConnectionResultDto(id, "New Connection", "PostgreSQL", DateTimeOffset.UtcNow, null, 1L);
         _createUseCase.ExecuteAsync(Arg.Any<CreateDataConnectionCommand>(), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -142,14 +142,14 @@ public sealed class DataConnectionsControllerTests
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        var dto = new DataConnectionResultDto(id, "Updated Connection", "PostgreSQL", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "8888");
-        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDataConnectionCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
+        var dto = new DataConnectionResultDto(id, "Updated Connection", "PostgreSQL", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 2L);
+        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDataConnectionCommand>(c => c.Id == id && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(dto);
 
         var request = new UpdateDataConnectionRequest("Updated Connection", "PostgreSQL", "Host=db;Database=erp");
 
         // Act
-        var result = await sut.Update(id, request, CancellationToken.None);
+        var result = await sut.Update(id, 1L, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
@@ -163,14 +163,14 @@ public sealed class DataConnectionsControllerTests
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
+        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         // Act
-        var result = await sut.Delete(id, CancellationToken.None);
+        var result = await sut.Delete(id, 1L, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
-        await _deleteUseCase.Received(1).ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id), Arg.Any<CancellationToken>());
+        await _deleteUseCase.Received(1).ExecuteAsync(Arg.Is<DeleteDataConnectionCommand>(c => c.Id == id && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>());
     }
 }

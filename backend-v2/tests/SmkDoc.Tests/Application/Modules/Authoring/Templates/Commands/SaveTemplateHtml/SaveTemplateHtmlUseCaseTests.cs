@@ -2,7 +2,6 @@ using SmkDoc.Application.Common;
 using SmkDoc.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.ValueObjects.Ids;
-using SmkDoc.Infrastructure.Contexts;
 using SmkDoc.Tests.Common.Builders;
 
 namespace SmkDoc.Tests.Application.Modules.Authoring.Templates.Commands.SaveTemplateHtml;
@@ -15,7 +14,6 @@ public sealed class SaveTemplateHtmlUseCaseTests
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ISchemaInferenceService _schemaInference = Substitute.For<ISchemaInferenceService>();
     private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
-    private readonly ConcurrencyContext _concurrencyContext = new();
 
     public SaveTemplateHtmlUseCaseTests()
     {
@@ -31,8 +29,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _unitOfWork,
         _projectContext,
         _schemaInference,
-        _timeProvider,
-        _concurrencyContext);
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_ShouldUploadOnlyImmutableVersionKey_ArchivePreviousVersion_AndCarryForwardMappingsSnapshot()
@@ -74,7 +71,8 @@ public sealed class SaveTemplateHtmlUseCaseTests
             TemplateId: templateId,
             Html: "<html><body><h1>Contract Version 4</h1></body></html>",
             SamplePayload: dummySample,
-            ChangeNote: "Updated payment terms"
+            ChangeNote: "Updated payment terms",
+            ExpectedVersion: template.Version
         );
 
         // Act
@@ -138,7 +136,8 @@ public sealed class SaveTemplateHtmlUseCaseTests
             TemplateId: templateId,
             Html: "<html><body>Blank</body></html>",
             SamplePayload: "{}",
-            ChangeNote: "Initial HTML"
+            ChangeNote: "Initial HTML",
+            ExpectedVersion: template.Version
         );
 
         // Act
@@ -171,7 +170,7 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("DB commit failed"));
 
-        var request = new SaveTemplateHtmlCommand(templateId, "<html></html>", "{}", "Note");
+        var request = new SaveTemplateHtmlCommand(templateId, "<html></html>", "{}", "Note", ExpectedVersion: template.Version);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(request, CancellationToken.None);
@@ -211,10 +210,10 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _templateRepo.GetByIdWithDetailsAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
-        _concurrencyContext.IfMatch = "\"2\""; // Current version is 3, mismatch!
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
-            Html: "<html><body>Hello</body></html>"
+            Html: "<html><body>Hello</body></html>",
+            ExpectedVersion: template.Version + 10
         );
 
         // Act
@@ -256,10 +255,10 @@ public sealed class SaveTemplateHtmlUseCaseTests
         _schemaInference.InferFromHtml(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>())
             .Returns(("{}", "{}"));
 
-        _concurrencyContext.IfMatch = "\"3\""; // Matches version 3!
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
-            Html: "<html><body>Hello</body></html>"
+            Html: "<html><body>Hello</body></html>",
+            ExpectedVersion: template.Version
         );
 
         // Act
@@ -311,7 +310,8 @@ public sealed class SaveTemplateHtmlUseCaseTests
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
             Html: "<html><body>A5 Landscape Document</body></html>",
-            PageSettings: customSettings
+            PageSettings: customSettings,
+            ExpectedVersion: template.Version
         );
 
         // Act
@@ -367,7 +367,8 @@ public sealed class SaveTemplateHtmlUseCaseTests
         var request = new SaveTemplateHtmlCommand(
             TemplateId: templateId,
             Html: "<html><body>Inherited Layout Document</body></html>",
-            PageSettings: null
+            PageSettings: null,
+            ExpectedVersion: template.Version
         );
 
         // Act

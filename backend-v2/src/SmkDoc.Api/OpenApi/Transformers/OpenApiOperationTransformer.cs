@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Filters;
 using SmkDoc.Application.Common.Interfaces;
@@ -11,10 +12,12 @@ namespace SmkDoc.Api.OpenApi.Transformers;
 
 /// <summary>
 /// Operation-level OpenAPI contract: stable operationId, security override for public routes,
-/// Idempotency-Key header, and RFC 9457 error responses.
+/// Idempotency-Key / If-Match / ETag headers, and RFC 9457 error responses.
 /// </summary>
 public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
 {
+    private static readonly string[] VersionedResponseCodes = ["200", "201", "202"];
+
     private static readonly IReadOnlyDictionary<string, string> DefaultErrorDescriptions =
         new Dictionary<string, string>
         {
@@ -30,8 +33,9 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         OpenApiOperationTransformerContext context,
         CancellationToken cancellationToken)
     {
-        // Step 1: Identity
+        // Step 1: Identity & Lifecycle
         ApplyOperationId(operation, context.Description);
+        ApplyDeprecationStatus(operation, context.Description);
 
         // Step 2: Security
         var isPublic = IsPublicRoute(context.Description);
@@ -43,7 +47,7 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         // Step 3: Headers
         ApplyProjectIdHeader(operation, context.Description, isPublic);
         ApplyIdempotencyHeader(operation, context.Description);
-        ApplyIfMatchRequestHeader(operation);
+        ApplyIfMatchRequestHeader(operation, context.Description);
         ApplyETagResponseHeader(operation, context.Description);
 
         // Step 4: Error contract
@@ -97,6 +101,24 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
                path.StartsWith("/health", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static void ApplyDeprecationStatus(OpenApiOperation operation, ApiDescription description)
+    {
+        if (description.ActionDescriptor is not ControllerActionDescriptor cad)
+        {
+            return;
+        }
+
+        bool hasObsolete = cad.MethodInfo?.IsDefined(typeof(ObsoleteAttribute), inherit: false) ?? false;
+        bool hasDeprecatedFilter = description.ActionDescriptor.EndpointMetadata?
+            .OfType<DeprecatedEndpointAttribute>()
+            .Any(attr => attr.MatchesPath(description.RelativePath)) ?? false;
+
+        if (hasObsolete || hasDeprecatedFilter)
+        {
+            operation.Deprecated = true;
+        }
+    }
+
     private static void ApplyProjectIdHeader(OpenApiOperation operation, ApiDescription description, bool isPublic)
     {
         if (isPublic)
@@ -105,7 +127,9 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         }
 
         var path = NormalizeRoutePath(description.RelativePath);
-        if (path.StartsWith("/api/v1/management", StringComparison.OrdinalIgnoreCase) ||
+        if ((path.StartsWith("/api/v1/management", StringComparison.OrdinalIgnoreCase) &&
+             !path.StartsWith("/api/v1/management/settings/fonts", StringComparison.OrdinalIgnoreCase)) ||
+            path.StartsWith("/api/v1/portal", StringComparison.OrdinalIgnoreCase) ||
             path.StartsWith("/api/v1/auth", StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -133,7 +157,7 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
 
     private static void ApplyIdempotencyHeader(OpenApiOperation operation, ApiDescription description)
     {
-        var idempotent = description.ActionDescriptor.EndpointMetadata
+        var idempotent = description.ActionDescriptor.EndpointMetadata?
             .OfType<IdempotentAttribute>()
             .FirstOrDefault();
         if (idempotent is null)
@@ -142,6 +166,14 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         }
 
         operation.Parameters ??= [];
+        var existingIdempotency = operation.Parameters.FirstOrDefault(p =>
+            p.In == ParameterLocation.Header &&
+            string.Equals(p.Name, OpenApiNames.IdempotencyKeyHeader, StringComparison.OrdinalIgnoreCase));
+        if (existingIdempotency is not null)
+        {
+            operation.Parameters.Remove(existingIdempotency);
+        }
+
         operation.Parameters.Add(new OpenApiParameter
         {
             Name = OpenApiNames.IdempotencyKeyHeader,
@@ -152,37 +184,74 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         });
     }
 
-    private static void ApplyIfMatchRequestHeader(OpenApiOperation operation)
+    private static void ApplyIfMatchRequestHeader(OpenApiOperation operation, ApiDescription description)
     {
-        if (operation.Responses?.ContainsKey("412") != true)
+        bool hasFromIfMatch = HasIfMatchAttribute(description);
+        bool declaresPreconditionStatus =
+            operation.Responses?.ContainsKey("412") == true ||
+            operation.Responses?.ContainsKey("428") == true;
+
+        if (!hasFromIfMatch && !declaresPreconditionStatus)
         {
             return;
         }
 
-        var alreadyHasIfMatch = operation.Parameters?.Any(parameter =>
-            parameter.In == ParameterLocation.Header &&
-            string.Equals(parameter.Name, OpenApiNames.IfMatchHeader, StringComparison.OrdinalIgnoreCase)) == true;
-        if (alreadyHasIfMatch)
+        if (hasFromIfMatch)
         {
-            return;
+            operation.Responses ??= [];
+            operation.Responses.TryAdd("412", new OpenApiResponse
+            {
+                Description = "Precondition Failed - stale resource version or malformed If-Match ETag."
+            });
+            operation.Responses.TryAdd("428", new OpenApiResponse
+            {
+                Description = "Precondition Required - missing required If-Match header."
+            });
         }
+
+        SetIfMatchParameter(operation, required: hasFromIfMatch);
+    }
+
+    private static bool HasIfMatchAttribute(ApiDescription description) =>
+        description.ActionDescriptor is ControllerActionDescriptor { MethodInfo: { } methodInfo } &&
+        methodInfo.GetParameters().Any(parameter => parameter.IsDefined(typeof(FromIfMatchAttribute), inherit: false));
+
+    private static void SetIfMatchParameter(OpenApiOperation operation, bool required)
+    {
+        const string ifMatchDescription =
+            "Optimistic concurrency version token (strong ETag in \"v{version}\" format returned by prior read).";
 
         operation.Parameters ??= [];
+        var existingIfMatch = operation.Parameters.FirstOrDefault(parameter =>
+            parameter.In == ParameterLocation.Header &&
+            string.Equals(parameter.Name, OpenApiNames.IfMatchHeader, StringComparison.OrdinalIgnoreCase));
+
+        if (existingIfMatch is OpenApiParameter concreteParam)
+        {
+            concreteParam.Required = required;
+            concreteParam.Description = ifMatchDescription;
+            concreteParam.Schema = new OpenApiSchema { Type = JsonSchemaType.String };
+            return;
+        }
+
+        if (existingIfMatch is not null)
+        {
+            operation.Parameters.Remove(existingIfMatch);
+        }
+
         operation.Parameters.Add(new OpenApiParameter
         {
             Name = OpenApiNames.IfMatchHeader,
             In = ParameterLocation.Header,
-            Required = false,
-            Description = "Optimistic concurrency token (ETag value from prior read) or '*' to bypass precondition check.",
+            Required = required,
+            Description = ifMatchDescription,
             Schema = new OpenApiSchema { Type = JsonSchemaType.String }
         });
     }
 
     private static void ApplyETagResponseHeader(OpenApiOperation operation, ApiDescription description)
     {
-        if (operation.Responses is null ||
-            !operation.Responses.TryGetValue("200", out var okResponse) ||
-            okResponse is not OpenApiResponse concreteResponse)
+        if (operation.Responses is null)
         {
             return;
         }
@@ -191,26 +260,35 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
             parameter.In == ParameterLocation.Header &&
             string.Equals(parameter.Name, OpenApiNames.IfMatchHeader, StringComparison.OrdinalIgnoreCase)) == true;
 
-        var returnsConcurrencyToken = description.SupportedResponseTypes
-            .Where(responseType => responseType.StatusCode == StatusCodes.Status200OK && responseType.Type is not null)
-            .Any(responseType => UnwrapsToConcurrencyToken(responseType.Type!));
+        var returnsVersionToken = description.SupportedResponseTypes
+            .Where(responseType =>
+                responseType.StatusCode is StatusCodes.Status200OK or StatusCodes.Status201Created or StatusCodes.Status202Accepted &&
+                responseType.Type is not null)
+            .Any(responseType => UnwrapsToVersionToken(responseType.Type!));
 
-        if (!hasIfMatch && !returnsConcurrencyToken)
+        if (!hasIfMatch && !returnsVersionToken)
         {
             return;
         }
 
-        concreteResponse.Headers ??= new Dictionary<string, IOpenApiHeader>();
-        concreteResponse.Headers[OpenApiNames.ETagHeader] = new OpenApiHeader
+        foreach (var statusCode in VersionedResponseCodes)
         {
-            Description = "Updated resource concurrency token (quoted Unix millisecond timestamp derived from UpdatedAt ?? CreatedAt).",
-            Schema = new OpenApiSchema { Type = JsonSchemaType.String }
-        };
+            if (operation.Responses.TryGetValue(statusCode, out var response) &&
+                response is OpenApiResponse concreteResponse)
+            {
+                concreteResponse.Headers ??= new Dictionary<string, IOpenApiHeader>();
+                concreteResponse.Headers[OpenApiNames.ETagHeader] = new OpenApiHeader
+                {
+                    Description = "Updated resource concurrency version token (strong ETag in \"v{version}\" format).",
+                    Schema = new OpenApiSchema { Type = JsonSchemaType.String }
+                };
+            }
+        }
     }
 
-    private static bool UnwrapsToConcurrencyToken(Type responseType)
+    private static bool UnwrapsToVersionToken(Type responseType)
     {
-        if (typeof(IHasConcurrencyToken).IsAssignableFrom(responseType))
+        if (typeof(IHasVersion).IsAssignableFrom(responseType))
         {
             return true;
         }
@@ -218,7 +296,7 @@ public sealed class OpenApiOperationTransformer : IOpenApiOperationTransformer
         if (responseType.IsGenericType && responseType.GetGenericTypeDefinition() == typeof(ApiResponse<>))
         {
             var innerType = responseType.GetGenericArguments()[0];
-            return typeof(IHasConcurrencyToken).IsAssignableFrom(innerType);
+            return typeof(IHasVersion).IsAssignableFrom(innerType);
         }
 
         return false;

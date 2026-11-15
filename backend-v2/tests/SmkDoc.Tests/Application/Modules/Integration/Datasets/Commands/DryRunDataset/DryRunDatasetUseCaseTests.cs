@@ -9,7 +9,7 @@ public sealed class DryRunDatasetUseCaseTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
-    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly IConnectionHostValidator _sqlValidator = Substitute.For<IConnectionHostValidator>();
     private readonly ISqlDriverFactory _driverFactory = Substitute.For<ISqlDriverFactory>();
     private readonly ISqlDriverStrategy _driverStrategy = Substitute.For<ISqlDriverStrategy>();
 
@@ -79,7 +79,7 @@ public sealed class DryRunDatasetUseCaseTests
         result.ExecutionTimeMs.Should().Be(12);
         result.Error.Should().BeNull();
 
-        await _sqlValidator.Received(1).ValidateConnectionTargetAsync("PostgreSQL", "Host=remote;Database=erp", Arg.Any<CancellationToken>());
+        await _sqlValidator.Received(1).ValidateConnectionTargetAsync("PostgreSQL", "Host=remote;Database=erp", connection.ProjectId, Arg.Any<CancellationToken>());
         _sqlValidator.Received(1).ValidateReadOnlySql("SELECT id, total FROM orders");
     }
 
@@ -149,7 +149,7 @@ public sealed class DryRunDatasetUseCaseTests
     public async Task ExecuteAsync_WhenSsrfForbidden_ThrowsForbiddenException()
     {
         // Arrange
-        _sqlValidator.ValidateConnectionTargetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _sqlValidator.ValidateConnectionTargetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<ProjectId?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new ForbiddenException("Loopback blocked"));
 
         var command = new DryRunDatasetCommand(null, "PostgreSQL", "Host=localhost;Database=db", "SELECT 1");

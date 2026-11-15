@@ -8,15 +8,19 @@ public sealed class UploadFontUseCaseTests
 {
     private readonly IStorageService _storageService = Substitute.For<IStorageService>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+    private readonly IFontRepository _fontRepository = Substitute.For<IFontRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
     private readonly ProjectId _projectId = ProjectId.New();
 
     public UploadFontUseCaseTests()
     {
         _projectContext.IsResolved.Returns(true);
         _projectContext.GetRequiredProjectId().Returns(_projectId);
+        _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private UploadFontUseCase CreateSut() => new(_storageService, _projectContext);
+    private UploadFontUseCase CreateSut() => new(_storageService, _projectContext, _fontRepository, _unitOfWork, _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenValidTrueTypeFont_ShouldUploadToTenantPartitionedKeyAndReturnSafeName()

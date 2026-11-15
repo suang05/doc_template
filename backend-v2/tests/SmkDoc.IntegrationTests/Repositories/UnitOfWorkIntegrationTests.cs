@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using SmkDoc.Domain.Interfaces;
 using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.Infrastructure.Persistence.Repositories;
 using SmkDoc.IntegrationTests.Fixtures;
@@ -17,25 +16,7 @@ public sealed class UnitOfWorkIntegrationTests : IClassFixture<PostgreSqlContain
     }
 
     [Fact]
-    public void Constructor_WithDbContextAndDispatcher_InstantiatesSuccessfully()
-    {
-        // Arrange
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(_fixture.ConnectionString)
-            .Options;
-
-        using var dbContext = new AppDbContext(options);
-        var dispatcher = Substitute.For<IDomainEventDispatcher>();
-
-        // Act
-        var uow = new UnitOfWork(dbContext, dispatcher);
-
-        // Assert
-        uow.Should().NotBeNull();
-    }
-
-    [Fact]
-    public void Constructor_WithNullDispatcher_InstantiatesSuccessfully()
+    public void Constructor_WithDbContext_InstantiatesSuccessfully()
     {
         // Arrange
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -45,7 +26,7 @@ public sealed class UnitOfWorkIntegrationTests : IClassFixture<PostgreSqlContain
         using var dbContext = new AppDbContext(options);
 
         // Act
-        var uow = new UnitOfWork(dbContext, null);
+        var uow = new UnitOfWork(dbContext);
 
         // Assert
         uow.Should().NotBeNull();

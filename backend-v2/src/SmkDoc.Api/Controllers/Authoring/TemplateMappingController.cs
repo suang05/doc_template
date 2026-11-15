@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Authoring.FieldMappings;
@@ -39,15 +40,17 @@ public sealed class TemplateMappingController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> SaveMappings(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         [FromBody] SaveTemplateMappingsRequest request,
         CancellationToken ct)
     {
         var mappings = (request.Mappings ?? []).Select(m => new SaveFieldMappingItemDto(
             m.Placeholder, m.SourcePath, m.Label, m.Required, m.DefaultValue, m.Transform,
             m.SortOrder, m.DataSourceType, m.DatasetAlias, m.ResultPath, m.MathExpression)).ToList();
-        var command = new SaveTemplateMappingsCommand(id, mappings);
+        var command = new SaveTemplateMappingsCommand(id, mappings, expectedVersion);
         var result = await saveMappingsUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<IEnumerable<FieldMappingResultDto>>(result));
     }

@@ -104,7 +104,7 @@ public sealed class SetUserStatusUseCaseTests
         _roleRepo.GetAsync(new ProjectId(projectId), userId, Arg.Any<CancellationToken>())
             .Returns(roleEntry);
 
-        var command = new SetUserStatusCommand(userId.Value, true);
+        var command = new SetUserStatusCommand(userId.Value, true, user.Version);
 
         // Act
         var result = await CreateSut().ExecuteAsync(command, CancellationToken.None);

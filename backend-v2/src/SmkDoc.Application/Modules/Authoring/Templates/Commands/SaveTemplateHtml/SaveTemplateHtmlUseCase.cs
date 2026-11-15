@@ -16,8 +16,7 @@ public sealed class SaveTemplateHtmlUseCase(
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
     ISchemaInferenceService schemaInferenceService,
-    TimeProvider timeProvider,
-    IConcurrencyContext? concurrencyContext = null) : IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>
+    TimeProvider timeProvider) : IUseCase<SaveTemplateHtmlCommand, SaveHtmlResultDto>
 {
     public async Task<SaveHtmlResultDto> ExecuteAsync(SaveTemplateHtmlCommand command, CancellationToken ct)
     {
@@ -26,10 +25,10 @@ public sealed class SaveTemplateHtmlUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
-        var currentVersion = template.CurrentVersion?.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            ?? template.FindPublishedVersion()?.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            ?? "0";
-        concurrencyContext?.EnsureMatches(template, currentVersion);
+        if (template.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
 
         int nextVersionNumber = template.GetNextVersionNumber();
         string versionedKey = StorageBuckets.TemplateVersionKey(template.ProjectId, template.Id, nextVersionNumber, ".html");
@@ -85,7 +84,7 @@ public sealed class SaveTemplateHtmlUseCase(
             templateRepo.Update(template);
             await unitOfWork.CommitAsync(ct);
 
-            return new SaveHtmlResultDto(nextVersionNumber);
+            return new SaveHtmlResultDto(nextVersionNumber, template.Version);
         }
         catch (Exception primaryEx)
         {

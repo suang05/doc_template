@@ -74,7 +74,7 @@ public sealed class UpdateTemplateDetailsUseCaseTests
         _templateRepo.GetByIdAsync(new TemplateId(templateId), Arg.Any<CancellationToken>())
             .Returns(template);
 
-        var command = new UpdateTemplateDetailsCommand(templateId, "Updated Name", "Updated Category");
+        var command = new UpdateTemplateDetailsCommand(templateId, "Updated Name", "Updated Category", template.Version);
 
         // Act
         TemplateResultDto result = await CreateSut().ExecuteAsync(command, CancellationToken.None);

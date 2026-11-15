@@ -13,6 +13,7 @@ namespace SmkDoc.Tests.Api.Filters;
 public sealed class IdempotencyFilterTests
 {
     private readonly IIdempotencyStore _idempotencyStore = Substitute.For<IIdempotencyStore>();
+    private readonly IIdempotencyExecutionScope _executionScope = Substitute.For<IIdempotencyExecutionScope>();
     private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
     private readonly ILogger<IdempotencyFilter> _logger = Substitute.For<ILogger<IdempotencyFilter>>();
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -21,6 +22,7 @@ public sealed class IdempotencyFilterTests
     {
         return new IdempotencyFilter(
             _idempotencyStore,
+            _executionScope,
             _projectContext,
             _logger,
             _jsonOptions,
@@ -28,12 +30,17 @@ public sealed class IdempotencyFilterTests
             mandatory);
     }
 
-    private string ConfigureResolvedTenant(ProjectId? projectId = null)
+    private ProjectId ConfigureResolvedTenant(ProjectId? projectId = null)
     {
         var pid = projectId ?? ProjectId.New();
+        var caller = $"project-{pid.Value:N}";
         _projectContext.IsResolved.Returns(true);
         _projectContext.GetRequiredProjectId().Returns(pid);
-        return pid.Value.ToString("N");
+        _projectContext.TryGetProjectId().Returns(pid);
+        _projectContext.ApiKeyId.Returns((ApiKeyId?)null);
+        _projectContext.UserId.Returns((UserId?)null);
+        _projectContext.CallerIdentity.Returns(caller);
+        return pid;
     }
 
     [Fact]
@@ -49,7 +56,9 @@ public sealed class IdempotencyFilterTests
 
         await next.Received(1).Invoke();
         context.Result.Should().BeNull();
-        await _idempotencyStore.DidNotReceive().TryAcquireOrGetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await _idempotencyStore.DidNotReceive().TryAcquireOrGetAsync(
+            Arg.Any<IdempotencyAcquisitionRequest>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -73,11 +82,11 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "test-key-1");
-        var tenantKey = ConfigureResolvedTenant();
-        var expectedCacheKey = $"idempotency:{tenantKey}:test-key-1";
+        var projectId = ConfigureResolvedTenant();
+        var cacheKey = $"{projectId.Value:N}:test-key-1";
 
         var inFlightRecord = new IdempotencyRecord(
-            expectedCacheKey,
+            cacheKey,
             "fingerprint-123",
             IdempotencyStatus.InFlight,
             null,
@@ -86,9 +95,10 @@ public sealed class IdempotencyFilterTests
             TestConstants.BaselineTime);
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                expectedCacheKey,
-                Arg.Any<string>(),
-                Arg.Any<TimeSpan>(),
+                Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                    r.ProjectId == projectId.Value &&
+                    r.IdempotencyKey == "test-key-1" &&
+                    r.Scope == "POST:/api/v1/templates"),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Conflict(inFlightRecord));
 
@@ -99,7 +109,7 @@ public sealed class IdempotencyFilterTests
         var conflict = (ConflictObjectResult)context.Result!;
         var problem = conflict.Value.Should().BeOfType<ProblemDetails>().Subject;
         problem.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be("IDEMPOTENCY_IN_FLIGHT");
+        problem.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be("IDEMPOTENCY_IN_PROGRESS");
     }
 
     [Fact]
@@ -107,15 +117,15 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "test-key-2");
-        var tenantKey = ConfigureResolvedTenant();
-        var expectedCacheKey = $"idempotency:{tenantKey}:test-key-2";
+        var projectId = ConfigureResolvedTenant();
+        var cacheKey = $"{projectId.Value:N}:test-key-2";
 
         var fingerprint = RequestFingerprintCalculator.ComputeFingerprint(context, _jsonOptions);
         var cachedJson = "{\"templateId\":\"456\",\"status\":\"active\"}";
         var cachedHeaders = new Dictionary<string, string> { ["Location"] = "/api/v1/templates/456" };
 
         var completedRecord = new IdempotencyRecord(
-            expectedCacheKey,
+            cacheKey,
             fingerprint,
             IdempotencyStatus.Completed,
             StatusCodes.Status201Created,
@@ -124,9 +134,10 @@ public sealed class IdempotencyFilterTests
             TestConstants.BaselineTime);
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                expectedCacheKey,
-                fingerprint,
-                Arg.Any<TimeSpan>(),
+                Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                    r.ProjectId == projectId.Value &&
+                    r.IdempotencyKey == "test-key-2" &&
+                    r.RequestFingerprint == fingerprint),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Conflict(completedRecord));
 
@@ -149,11 +160,11 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "test-key-3");
-        var tenantKey = ConfigureResolvedTenant();
-        var expectedCacheKey = $"idempotency:{tenantKey}:test-key-3";
+        var projectId = ConfigureResolvedTenant();
+        var cacheKey = $"{projectId.Value:N}:test-key-3";
 
         var completedRecord = new IdempotencyRecord(
-            expectedCacheKey,
+            cacheKey,
             "different-hash-from-first-request",
             IdempotencyStatus.Completed,
             StatusCodes.Status200OK,
@@ -162,9 +173,9 @@ public sealed class IdempotencyFilterTests
             TestConstants.BaselineTime);
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                expectedCacheKey,
-                Arg.Any<string>(),
-                Arg.Any<TimeSpan>(),
+                Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                    r.ProjectId == projectId.Value &&
+                    r.IdempotencyKey == "test-key-3"),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Conflict(completedRecord));
 
@@ -175,7 +186,7 @@ public sealed class IdempotencyFilterTests
         var objectResult = (ObjectResult)context.Result!;
         objectResult.StatusCode.Should().Be(StatusCodes.Status422UnprocessableEntity);
         var problem = objectResult.Value.Should().BeOfType<ProblemDetails>().Subject;
-        problem.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be("IDEMPOTENCY_PAYLOAD_MISMATCH");
+        problem.Extensions.Should().ContainKey("errorCode").WhoseValue.Should().Be("IDEMPOTENCY_KEY_REUSED");
     }
 
     [Fact]
@@ -183,13 +194,12 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "fail-key");
-        var tenantKey = ConfigureResolvedTenant();
-        var expectedCacheKey = $"idempotency:{tenantKey}:fail-key";
+        var projectId = ConfigureResolvedTenant();
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                expectedCacheKey,
-                Arg.Any<string>(),
-                Arg.Any<TimeSpan>(),
+                Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                    r.ProjectId == projectId.Value &&
+                    r.IdempotencyKey == "fail-key"),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Acquired());
 
@@ -198,7 +208,12 @@ public sealed class IdempotencyFilterTests
         var act = async () => await sut.OnActionExecutionAsync(context, next);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("DB timeout");
-        await _idempotencyStore.Received(1).RemoveAsync(expectedCacheKey, Arg.Any<CancellationToken>());
+        await _idempotencyStore.Received(1).RemoveAsync(
+            projectId.Value,
+            $"project-{projectId.Value:N}",
+            "POST:/api/v1/templates",
+            "fail-key",
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -206,13 +221,12 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "success-key");
-        var tenantKey = ConfigureResolvedTenant();
-        var expectedCacheKey = $"idempotency:{tenantKey}:success-key";
+        var projectId = ConfigureResolvedTenant();
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                expectedCacheKey,
-                Arg.Any<string>(),
-                Arg.Any<TimeSpan>(),
+                Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                    r.ProjectId == projectId.Value &&
+                    r.IdempotencyKey == "success-key"),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Acquired());
 
@@ -222,13 +236,14 @@ public sealed class IdempotencyFilterTests
 
         await sut.OnActionExecutionAsync(context, next);
 
+        _executionScope.Received(1).MarkFilterManaged();
         await _idempotencyStore.Received(1).SaveCompletedAsync(
-            expectedCacheKey,
-            Arg.Any<string>(),
-            StatusCodes.Status201Created,
-            Arg.Is<string>(json => json.Contains("new-template")),
-            Arg.Any<IReadOnlyDictionary<string, string>?>(),
-            TimeSpan.FromHours(24),
+            Arg.Is<IdempotencyCompletionRequest>(r =>
+                r.ProjectId == projectId.Value &&
+                r.IdempotencyKey == "success-key" &&
+                r.StatusCode == StatusCodes.Status201Created &&
+                r.ResponseJson.Contains("new-template") &&
+                r.CompletedTtl == TimeSpan.FromHours(24)),
             Arg.Any<CancellationToken>());
     }
 
@@ -237,13 +252,12 @@ public sealed class IdempotencyFilterTests
     {
         var sut = CreateSut();
         var (context, next) = CreateActionContext(idempotencyKey: "bad-request-key");
-        var tenantKey = ConfigureResolvedTenant();
-        var expectedCacheKey = $"idempotency:{tenantKey}:bad-request-key";
+        var projectId = ConfigureResolvedTenant();
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                expectedCacheKey,
-                Arg.Any<string>(),
-                Arg.Any<TimeSpan>(),
+                Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                    r.ProjectId == projectId.Value &&
+                    r.IdempotencyKey == "bad-request-key"),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Acquired());
 
@@ -252,21 +266,26 @@ public sealed class IdempotencyFilterTests
 
         await sut.OnActionExecutionAsync(context, next);
 
-        await _idempotencyStore.Received(1).RemoveAsync(expectedCacheKey, Arg.Any<CancellationToken>());
-        await _idempotencyStore.DidNotReceive().SaveCompletedAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>?>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await _idempotencyStore.Received(1).RemoveAsync(
+            projectId.Value,
+            $"project-{projectId.Value:N}",
+            "POST:/api/v1/templates",
+            "bad-request-key",
+            Arg.Any<CancellationToken>());
+        await _idempotencyStore.DidNotReceive().SaveCompletedAsync(
+            Arg.Any<IdempotencyCompletionRequest>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task OnActionExecutionAsync_DifferentTenantsWithSameIdempotencyKey_PartitionIntoDistinctCacheKeys()
+    public async Task OnActionExecutionAsync_DifferentTenantsWithSameIdempotencyKey_PartitionIntoDistinctRequests()
     {
         var sut = CreateSut();
         var tenantA = ProjectId.New();
         var tenantB = ProjectId.New();
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                Arg.Any<string>(),
-                Arg.Any<string>(),
-                Arg.Any<TimeSpan>(),
+                Arg.Any<IdempotencyAcquisitionRequest>(),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Acquired());
 
@@ -283,14 +302,14 @@ public sealed class IdempotencyFilterTests
         await sut.OnActionExecutionAsync(ctxB, nextB);
 
         await _idempotencyStore.Received(1).TryAcquireOrGetAsync(
-            $"idempotency:{tenantA.Value:N}:shared-key",
-            Arg.Any<string>(),
-            Arg.Any<TimeSpan>(),
+            Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                r.ProjectId == tenantA.Value &&
+                r.IdempotencyKey == "shared-key"),
             Arg.Any<CancellationToken>());
         await _idempotencyStore.Received(1).TryAcquireOrGetAsync(
-            $"idempotency:{tenantB.Value:N}:shared-key",
-            Arg.Any<string>(),
-            Arg.Any<TimeSpan>(),
+            Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                r.ProjectId == tenantB.Value &&
+                r.IdempotencyKey == "shared-key"),
             Arg.Any<CancellationToken>());
     }
 
@@ -300,12 +319,12 @@ public sealed class IdempotencyFilterTests
         var sut = CreateSut();
         var userId = UserId.New();
         _projectContext.IsResolved.Returns(false);
+        _projectContext.TryGetProjectId().Returns((ProjectId?)null);
+        _projectContext.ApiKeyId.Returns((ApiKeyId?)null);
         _projectContext.UserId.Returns(userId);
 
         _idempotencyStore.TryAcquireOrGetAsync(
-                Arg.Any<string>(),
-                Arg.Any<string>(),
-                Arg.Any<TimeSpan>(),
+                Arg.Any<IdempotencyAcquisitionRequest>(),
                 Arg.Any<CancellationToken>())
             .Returns(IdempotencyAcquisitionResult.Acquired());
 
@@ -315,9 +334,11 @@ public sealed class IdempotencyFilterTests
         await sut.OnActionExecutionAsync(ctx, next);
 
         await _idempotencyStore.Received(1).TryAcquireOrGetAsync(
-            $"idempotency:{userId.Value:N}:global-op-key",
-            Arg.Any<string>(),
-            Arg.Any<TimeSpan>(),
+            Arg.Is<IdempotencyAcquisitionRequest>(r =>
+                r.ProjectId == null &&
+                r.CredentialId == userId.Value.ToString("N") &&
+                r.Scope == "POST:/api/v1/templates" &&
+                r.IdempotencyKey == "global-op-key"),
             Arg.Any<CancellationToken>());
     }
 

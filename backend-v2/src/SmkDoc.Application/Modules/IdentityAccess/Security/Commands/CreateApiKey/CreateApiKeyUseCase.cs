@@ -13,8 +13,12 @@ public sealed class CreateApiKeyUseCase(
     IProjectRepository projectRepo,
     IUnitOfWork unitOfWork,
     ICurrentProjectContext projectContext,
-    TimeProvider timeProvider) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
+    TimeProvider timeProvider,
+    IQuotaReader? quotaReader = null,
+    IApiKeyCredentialGenerator? credentialGenerator = null) : IUseCase<CreateApiKeyCommand, CreateApiKeyResultDto>
 {
+    private const int DefaultMaxActiveApiKeys = 2;
+
     public async Task<CreateApiKeyResultDto> ExecuteAsync(CreateApiKeyCommand command, CancellationToken ct)
     {
         var pId = projectContext.GetRequiredProjectId();
@@ -24,11 +28,11 @@ public sealed class CreateApiKeyUseCase(
         var targetScope = ApiKeyScope.FromName(command.Scope);
         await EnsureWithinQuotaAndUniqueScopeAsync(pId, targetScope, command.Scope, now, ct);
 
-        var (key, rawSecret) = IssueKey(pId, command, targetScope, now);
+        var (key, rawSecret) = IssueKey(pId, command, targetScope, now, credentialGenerator);
         await apiKeyRepo.AddAsync(key, ct);
         await unitOfWork.CommitAsync(ct);
 
-        return new CreateApiKeyResultDto(key.Id.Value, key.Name.Value, key.CallerApp, rawSecret, key.Scope.Name, key.ExpiresAt);
+        return new CreateApiKeyResultDto(key.Id.Value, key.Name.Value, key.CallerApp, rawSecret, key.Scope.Name, key.ExpiresAt, key.Version);
     }
 
     private async Task EnsureProjectExistsAsync(ProjectId pId, CancellationToken ct)
@@ -47,9 +51,15 @@ public sealed class CreateApiKeyUseCase(
         var existingKeys = await apiKeyRepo.ListByProjectAsync(pId, ct);
         var activeKeys = existingKeys.Where(k => k.IsActive && !k.IsExpiredAt(now)).ToList();
 
-        if (activeKeys.Count >= 2)
+        var maxActiveKeys = quotaReader is not null
+            ? (await quotaReader.GetQuotaForProjectAsync(pId, ct)).MaxActiveApiKeys
+            : DefaultMaxActiveApiKeys;
+
+        if (activeKeys.Count >= maxActiveKeys)
         {
-            throw new ConflictException("Project has reached the maximum quota of 2 active API keys.");
+            throw new BusinessRuleViolationException(
+                $"Project has reached the maximum quota of {maxActiveKeys} active API keys.",
+                ErrorCodes.QuotaExceeded);
         }
 
         if (activeKeys.Any(k => k.Scope == targetScope))
@@ -63,8 +73,26 @@ public sealed class CreateApiKeyUseCase(
         ProjectId pId,
         CreateApiKeyCommand command,
         ApiKeyScope targetScope,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        IApiKeyCredentialGenerator? credentialGenerator)
     {
+        if (credentialGenerator is not null)
+        {
+            var minted = credentialGenerator.MintLiveKey();
+            var structuredKey = ApiKey.IssueStructured(
+                pId,
+                ApiKeyName.Create(command.Name),
+                command.CallerApp,
+                minted.KeyPrefix,
+                minted.KeyId,
+                minted.KeySuffix,
+                minted.SecretHash.ToArray(),
+                ExpirationPolicy.Never,
+                now,
+                targetScope);
+            return (structuredKey, minted.PlainTextKey);
+        }
+
         var rawSecret = ApiKeyGenerator.GenerateSecret($"smk_{command.CallerApp.ToLowerInvariant()}");
         var hash = new Sha256Hash(ApiKeyGenerator.ComputeHash(rawSecret));
 

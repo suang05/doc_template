@@ -1,4 +1,3 @@
-using System.Globalization;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Interfaces;
@@ -17,10 +16,8 @@ public sealed class UserProjectRole : IConcurrencyAware, IEquatable<UserProjectR
     public object EntityId => UserId.Value;
     public RoleType Role { get; private set; } = RoleType.Viewer;
     public DateTimeOffset CreatedAt { get; private set; }
-    DateTimeOffset? IConcurrencyAware.UpdatedAt => null;
-
-    public string GetConcurrencyToken() =>
-        CreatedAt.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+    public DateTimeOffset? UpdatedAt { get; private set; }
+    public long Version { get; private set; } = 1;
 
     // For EF Core materialization only
     private UserProjectRole() { }
@@ -36,9 +33,11 @@ public sealed class UserProjectRole : IConcurrencyAware, IEquatable<UserProjectR
     public static UserProjectRole Create(UserId userId, ProjectId projectId, RoleType role, DateTimeOffset now) =>
         new(userId, projectId, role, now);
 
-    public void UpdateRole(RoleType newRole)
+    public void UpdateRole(RoleType newRole, DateTimeOffset now)
     {
         Role = newRole ?? RoleType.Viewer;
+        UpdatedAt = now;
+        Version++;
     }
 
     public bool Equals(UserProjectRole? other)

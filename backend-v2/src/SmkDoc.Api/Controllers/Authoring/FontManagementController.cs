@@ -18,6 +18,7 @@ namespace SmkDoc.Api.Controllers.Authoring;
 [ApiController]
 [Route("api/v1/fonts")]
 [Route("api/v1/management/settings/fonts")]
+[DeprecatedEndpoint("/api/v1/management/settings/fonts")]
 [Authorize]
 public sealed class FontManagementController(
     IUseCase<ListFontsQuery, List<string>> listFontsUseCase,

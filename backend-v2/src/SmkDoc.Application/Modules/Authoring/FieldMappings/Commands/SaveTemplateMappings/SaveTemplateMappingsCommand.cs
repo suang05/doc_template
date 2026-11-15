@@ -4,5 +4,6 @@ namespace SmkDoc.Application.Modules.Authoring.FieldMappings.Commands.SaveTempla
 
 public sealed record SaveTemplateMappingsCommand(
     Guid TemplateId,
-    IReadOnlyList<SaveFieldMappingItemDto> Items
+    IReadOnlyList<SaveFieldMappingItemDto> Items,
+    long ExpectedVersion = 1
 );

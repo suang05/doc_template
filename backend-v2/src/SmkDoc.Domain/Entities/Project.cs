@@ -13,6 +13,7 @@ public sealed class Project : AggregateRoot<ProjectId>
     public ProjectName Name { get; private set; } = null!;
     public ProjectSlug Slug { get; private set; } = null!;
     public bool IsActive { get; private set; }
+    public string? AllowedEgressCidrs { get; private set; }
 
     // For EF Core materialization only
     private Project() { }
@@ -24,6 +25,7 @@ public sealed class Project : AggregateRoot<ProjectId>
         Name = Guard.NotNull(name, nameof(Name));
         Slug = Guard.NotNull(slug, nameof(Slug));
         IsActive = true;
+        AddDomainEvent(new Events.ProjectProvisionedDomainEvent(Id, CompanyId, Slug.Value, now));
     }
 
     public static Project Create(CompanyId companyId, ProjectName name, ProjectSlug slug, DateTimeOffset now) =>
@@ -38,11 +40,26 @@ public sealed class Project : AggregateRoot<ProjectId>
         SetUpdated(now);
     }
 
+    public void SetAllowedEgressCidrs(string? cidrs, DateTimeOffset now)
+    {
+        var normalized = string.IsNullOrWhiteSpace(cidrs) ? null : cidrs.Trim();
+        if (AllowedEgressCidrs == normalized) return;
+
+        AllowedEgressCidrs = normalized;
+        SetUpdated(now);
+    }
+
+    public IReadOnlyList<string> GetAllowedEgressCidrList() =>
+        string.IsNullOrWhiteSpace(AllowedEgressCidrs)
+            ? []
+            : AllowedEgressCidrs.Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     public void Activate(DateTimeOffset now)
     {
         if (IsActive) return;
         IsActive = true;
         SetUpdated(now);
+        AddDomainEvent(new Events.ProjectActivatedDomainEvent(Id, now));
     }
 
     public void Deactivate(DateTimeOffset now)
@@ -50,6 +67,7 @@ public sealed class Project : AggregateRoot<ProjectId>
         if (!IsActive) return;
         IsActive = false;
         SetUpdated(now);
+        AddDomainEvent(new Events.ProjectDeactivatedDomainEvent(Id, now));
     }
 
     public void RecordOwnershipTransfer(DateTimeOffset now) =>

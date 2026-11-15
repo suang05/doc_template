@@ -1,20 +1,25 @@
+using System.Net;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Data;
 
 namespace SmkDoc.Tests.Infrastructure.Data;
 
 public sealed class SqlExecutorServiceTests
 {
-    private readonly ISqlConnectionValidator _validator = Substitute.For<ISqlConnectionValidator>();
+    private readonly IConnectionHostValidator _validator = Substitute.For<IConnectionHostValidator>();
     private readonly ISqlDriverFactory _driverFactory = Substitute.For<ISqlDriverFactory>();
     private readonly ISqlDriverStrategy _strategy = Substitute.For<ISqlDriverStrategy>();
+    private readonly ICurrentProjectContext _projectContext = Substitute.For<ICurrentProjectContext>();
+    private readonly ProjectId _projectId = ProjectId.New();
 
     public SqlExecutorServiceTests()
     {
         _strategy.ProviderName.Returns("PostgreSQL");
         _driverFactory.GetStrategy("PostgreSQL").Returns(_strategy);
+        _projectContext.TryGetProjectId().Returns(_projectId);
     }
 
-    private SqlExecutorService CreateSut() => new(_validator, _driverFactory);
+    private SqlExecutorService CreateSut() => new(_validator, _driverFactory, _projectContext);
 
     [Theory]
     [InlineData("")]
@@ -31,7 +36,11 @@ public sealed class SqlExecutorServiceTests
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>()
             .WithMessage("*provider is required*");
-        await _validator.DidNotReceive().ValidateConnectionTargetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _validator.DidNotReceive().ValidateConnectionTargetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<ProjectId?>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -45,8 +54,11 @@ public sealed class SqlExecutorServiceTests
         var dict = new Dictionary<string, object> { ["status"] = "active" };
         using var cts = new CancellationTokenSource();
         var ct = cts.Token;
+        var pinned = new ResolvedEgressTarget("remote.db", [IPAddress.Parse("93.184.216.34")], 5432);
 
-        _strategy.ExecuteQueryAsJsonAsync(connStr, sql, dict, 15, ct)
+        _validator.ValidateConnectionTargetAsync(provider, connStr, _projectId, ct)
+            .Returns(pinned);
+        _strategy.ExecuteQueryWithPinnedTargetAsync(connStr, sql, dict, 15, pinned, ct)
             .Returns("[{\"id\":1,\"name\":\"Alice\"}]");
 
         // Act
@@ -55,10 +67,10 @@ public sealed class SqlExecutorServiceTests
         // Assert
         result.Should().Be("[{\"id\":1,\"name\":\"Alice\"}]");
 
-        await _validator.Received(1).ValidateConnectionTargetAsync(provider, connStr, ct);
+        await _validator.Received(1).ValidateConnectionTargetAsync(provider, connStr, _projectId, ct);
         _validator.Received(1).ValidateReadOnlySql(sql);
         _driverFactory.Received(1).GetStrategy(provider);
-        await _strategy.Received(1).ExecuteQueryAsJsonAsync(connStr, sql, dict, 15, ct);
+        await _strategy.Received(1).ExecuteQueryWithPinnedTargetAsync(connStr, sql, dict, 15, pinned, ct);
     }
 
     [Fact]
@@ -66,7 +78,7 @@ public sealed class SqlExecutorServiceTests
     {
         // Arrange
         var sut = CreateSut();
-        _validator.ValidateConnectionTargetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _validator.ValidateConnectionTargetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<ProjectId?>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new ForbiddenException("SSRF blocked"));
 
         // Act
@@ -75,8 +87,13 @@ public sealed class SqlExecutorServiceTests
         // Assert
         await act.Should().ThrowAsync<ForbiddenException>();
         _driverFactory.DidNotReceive().GetStrategy(Arg.Any<string>());
-        await _strategy.DidNotReceive().ExecuteQueryAsJsonAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IDictionary<string, object>?>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _strategy.DidNotReceive().ExecuteQueryWithPinnedTargetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<IDictionary<string, object>?>(),
+            Arg.Any<int>(),
+            Arg.Any<ResolvedEgressTarget>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -93,8 +110,12 @@ public sealed class SqlExecutorServiceTests
         // Assert
         await act.Should().ThrowAsync<DomainValidationException>();
         _driverFactory.DidNotReceive().GetStrategy(Arg.Any<string>());
-        await _strategy.DidNotReceive().ExecuteQueryAsJsonAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IDictionary<string, object>?>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _strategy.DidNotReceive().ExecuteQueryWithPinnedTargetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<IDictionary<string, object>?>(),
+            Arg.Any<int>(),
+            Arg.Any<ResolvedEgressTarget>(),
+            Arg.Any<CancellationToken>());
     }
 }
-

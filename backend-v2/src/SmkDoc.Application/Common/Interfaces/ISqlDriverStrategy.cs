@@ -32,5 +32,30 @@ public interface ISqlDriverStrategy
         int maxRows,
         int commandTimeoutSeconds,
         CancellationToken ct);
+
+    /// <summary>
+    /// Executes a read-only query using a pre-resolved pinned egress IP target to eliminate DNS rebinding TOCTOU.
+    /// </summary>
+    Task<string> ExecuteQueryWithPinnedTargetAsync(
+        string connectionString,
+        string sqlQuery,
+        IDictionary<string, object>? parameters,
+        int commandTimeoutSeconds,
+        ResolvedEgressTarget? pinnedTarget,
+        CancellationToken ct) =>
+        ExecuteQueryAsJsonAsync(connectionString, sqlQuery, parameters, commandTimeoutSeconds, ct);
+
+    /// <summary>
+    /// Executes a dry-run query using a pre-resolved pinned egress IP target to eliminate DNS rebinding TOCTOU.
+    /// </summary>
+    Task<DryRunExecutionResult> ExecuteDryRunWithPinnedTargetAsync(
+        string connectionString,
+        string sqlQuery,
+        IDictionary<string, object>? parameters,
+        int maxRows,
+        int commandTimeoutSeconds,
+        ResolvedEgressTarget? pinnedTarget,
+        CancellationToken ct) =>
+        ExecuteDryRunAsync(connectionString, sqlQuery, parameters, maxRows, commandTimeoutSeconds, ct);
 }
 

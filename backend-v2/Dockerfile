@@ -8,8 +8,10 @@ COPY Directory.Build.props Directory.Packages.props SmkDocServerV2.slnx ./
 COPY src/SmkDoc.Domain/SmkDoc.Domain.csproj src/SmkDoc.Domain/
 COPY src/SmkDoc.Application/SmkDoc.Application.csproj src/SmkDoc.Application/
 COPY src/SmkDoc.Infrastructure/SmkDoc.Infrastructure.csproj src/SmkDoc.Infrastructure/
+COPY src/SmkDoc.Worker/SmkDoc.Worker.csproj src/SmkDoc.Worker/
 COPY src/SmkDoc.Api/SmkDoc.Api.csproj src/SmkDoc.Api/
 COPY tests/SmkDoc.Tests/SmkDoc.Tests.csproj tests/SmkDoc.Tests/
+COPY tests/SmkDoc.IntegrationTests/SmkDoc.IntegrationTests.csproj tests/SmkDoc.IntegrationTests/
 
 # Restore dependencies
 RUN dotnet restore SmkDocServerV2.slnx
@@ -36,6 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
+ENV DOTNET_GCHeapHardLimitPercent=0x4B
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "SmkDoc.Api.dll"]

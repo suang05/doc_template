@@ -46,6 +46,6 @@ public sealed class CreateDatasetUseCase(
             entity.CacheSeconds,
             entity.CreatedAt,
             entity.UpdatedAt,
-            entity.GetConcurrencyToken());
+            entity.Version);
     }
 }

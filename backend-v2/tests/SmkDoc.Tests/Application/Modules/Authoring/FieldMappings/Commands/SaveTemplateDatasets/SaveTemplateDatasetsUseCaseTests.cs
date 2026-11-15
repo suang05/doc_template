@@ -41,7 +41,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
             new(dsId, "payments", 1)
         };
 
-        var command = new SaveTemplateDatasetsCommand(templateId, items);
+        var command = new SaveTemplateDatasetsCommand(templateId, items, template.Version);
 
         // Act
         await CreateSut().ExecuteAsync(command, CancellationToken.None);
@@ -94,7 +94,7 @@ public sealed class SaveTemplateDatasetsUseCaseTests
             new(Guid.NewGuid(), "ORDERS ", 2) // Duplicate case-insensitive
         };
 
-        var command = new SaveTemplateDatasetsCommand(templateId, items);
+        var command = new SaveTemplateDatasetsCommand(templateId, items, template.Version);
 
         // Act
         var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);

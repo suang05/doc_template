@@ -1,10 +1,14 @@
+using System.Net.Sockets;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using SmkDoc.Application.Common.Interfaces;
-using SmkDoc.Infrastructure.BackgroundWorkers;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Cache;
-using SmkDoc.Infrastructure.Queue;
+using SmkDoc.Infrastructure.Notifications;
+using SmkDoc.Infrastructure.Persistence.Idempotency;
 using StackExchange.Redis;
 
 namespace SmkDoc.Infrastructure.Extensions;
@@ -15,8 +19,7 @@ public static class DistributedInfrastructureExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<DocumentRenderWorkerOptions>(configuration.GetSection("DocumentRenderWorker"));
-        services.Configure<DocumentRetentionWorkerOptions>(configuration.GetSection("DocumentRetentionWorker"));
+        services.Configure<WebhookOptions>(configuration.GetSection(WebhookOptions.SectionName));
 
         var redisConn = RedisConfigurationResolver.ResolveConnectionString(configuration);
         var prefix = RedisConfigurationResolver.ResolveInstancePrefix(configuration);
@@ -26,14 +29,11 @@ public static class DistributedInfrastructureExtensions
             sp.GetService<IConnectionMultiplexer>(),
             sp.GetRequiredService<IStorageService>(),
             sp.GetRequiredService<ILogger<HybridTemplateDraftCache>>(),
-            sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+            sp.GetRequiredService<IMemoryCache>(),
             prefix,
             sp.GetService<ICurrentProjectContext>()));
 
-        // 2. Distributed Store & Streams Queue
-        bool enforceDistributed = string.Equals(configuration["ASPNETCORE_ENVIRONMENT"], "Production", StringComparison.OrdinalIgnoreCase)
-            || configuration.GetValue<bool>("EnforceDistributedInfrastructure");
-
+        // 2. Dataset Cache (Optional Redis L2; falls back gracefully to in-memory cache)
         if (redisConn is not null)
         {
             services.AddSingleton<IConnectionMultiplexer>(_ =>
@@ -48,38 +48,70 @@ public static class DistributedInfrastructureExtensions
                 sp.GetRequiredService<IConnectionMultiplexer>(),
                 sp.GetRequiredService<ILogger<RedisDatasetResultCache>>(),
                 prefix));
-
-            services.AddSingleton<IIdempotencyStore>(sp => new RedisIdempotencyStore(
-                sp.GetRequiredService<IConnectionMultiplexer>(),
-                sp.GetRequiredService<TimeProvider>(),
-                sp.GetRequiredService<ILogger<RedisIdempotencyStore>>(),
-                prefix));
-
-            services.AddSingleton<IDocumentRenderQueue>(sp =>
-            {
-                var multiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
-                var logger = sp.GetRequiredService<ILogger<RedisDocumentRenderQueue>>();
-                return new RedisDocumentRenderQueue(multiplexer, logger, prefix);
-            });
-        }
-        else if (enforceDistributed)
-        {
-            throw new InvalidOperationException(
-                "Distributed infrastructure is strictly required in Production environment (or when EnforceDistributedInfrastructure is enabled). " +
-                "Configure ConnectionStrings:Redis or REDIS_URL to prevent split-brain idempotency and trapped in-memory jobs.");
         }
         else
         {
             services.AddSingleton<IDatasetResultCache, MemoryDatasetResultCache>();
-            services.AddSingleton<IIdempotencyStore, MemoryIdempotencyStore>();
-            services.AddSingleton<IDocumentRenderQueue, MemoryDocumentRenderQueue>();
         }
 
-        // 3. Background Hosted Workers
-        services.AddHostedService<DocumentRenderQueueWorker>();
-        services.AddHostedService<DocumentRetentionWorker>();
+        // 3. Durable PostgreSQL Idempotency Store (atomic UPSERT + RLS)
+        services.AddSingleton<IIdempotencyStore>(sp => new PostgresIdempotencyStore(
+            sp.GetRequiredService<NpgsqlDataSource>(),
+            sp.GetRequiredService<TimeProvider>()));
+
+        // 4. Outbound IP-Pinned Webhook HTTP Client (SSRF-hardened ConnectCallback + AllowAutoRedirect=false)
+        services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
+        services.AddHttpClient(WebhookDispatcher.HttpClientName, (sp, client) =>
+        {
+            int timeoutSeconds = Math.Clamp(
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<WebhookOptions>>().Value.TimeoutSeconds,
+                1,
+                120);
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        })
+        .ConfigurePrimaryHttpMessageHandler(sp => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+            ConnectCallback = async (context, cancellationToken) =>
+            {
+                var host = context.DnsEndPoint.Host;
+                var port = context.DnsEndPoint.Port;
+
+                ProjectId? projectId = null;
+                if (context.InitialRequestMessage?.Options.TryGetValue(WebhookDispatcher.ProjectIdOptionKey, out var pid) == true &&
+                    !pid.IsEmpty)
+                {
+                    projectId = pid;
+                }
+
+                await using var scope = sp.CreateAsyncScope();
+                var hostValidator = scope.ServiceProvider.GetRequiredService<IConnectionHostValidator>();
+                var pinned = await hostValidator.ResolveAndValidateHostAsync(host, port, projectId, cancellationToken);
+
+                Exception? lastException = null;
+                foreach (var address in pinned.PinnedAddresses)
+                {
+                    var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp)
+                    {
+                        NoDelay = true
+                    };
+                    try
+                    {
+                        await socket.ConnectAsync(address, port, cancellationToken);
+                        return new NetworkStream(socket, ownsSocket: true);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        socket.Dispose();
+                        lastException = ex;
+                    }
+                }
+
+                throw lastException ?? new SocketException((int)SocketError.HostUnreachable);
+            }
+        });
 
         return services;
     }
 }
-

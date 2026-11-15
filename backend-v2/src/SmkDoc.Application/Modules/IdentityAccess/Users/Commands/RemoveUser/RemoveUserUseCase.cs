@@ -16,6 +16,11 @@ public sealed class RemoveUserUseCase(
         var roleEntry = await roleRepo.GetAsync(pId, uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
+        if (roleEntry.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         if (roleEntry.Role == RoleType.Admin)
         {
             var adminCount = await roleRepo.CountAdminsAsync(pId, ct);

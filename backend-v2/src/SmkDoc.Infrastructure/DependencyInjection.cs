@@ -19,10 +19,11 @@ public static class DependencyInjection
         services.AddSingleton(TimeProvider.System);
 
         return services
-            .AddSecurityInfrastructure()
+            .AddSecurityInfrastructure(configuration)
             .AddPersistenceInfrastructure(configuration)
             .AddStorageInfrastructure(configuration)
             .AddRenderingEnginesInfrastructure(configuration)
-            .AddDistributedInfrastructure(configuration);
+            .AddDistributedInfrastructure(configuration)
+            .AddOutboxInfrastructure(configuration);
     }
 }

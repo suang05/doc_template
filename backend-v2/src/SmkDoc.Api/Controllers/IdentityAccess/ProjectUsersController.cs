@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.Users;
@@ -63,12 +64,14 @@ public sealed class ProjectUsersController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> UpdateRole(
         [FromRoute] Guid userId,
+        [FromIfMatch] long expectedVersion,
         [FromBody] UpdateUserRoleRequest request,
         CancellationToken ct)
     {
-        var command = new UpdateUserRoleCommand(userId, request.Role);
+        var command = new UpdateUserRoleCommand(userId, request.Role, expectedVersion);
         var result = await updateUserRoleUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<UserResultDto>(result));
     }
@@ -80,12 +83,14 @@ public sealed class ProjectUsersController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Remove(
         [FromRoute] Guid userId,
+        [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
         var currentUserId = User.GetUserId();
-        var command = new RemoveUserCommand(userId, currentUserId);
+        var command = new RemoveUserCommand(userId, currentUserId, expectedVersion);
         await removeUserUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

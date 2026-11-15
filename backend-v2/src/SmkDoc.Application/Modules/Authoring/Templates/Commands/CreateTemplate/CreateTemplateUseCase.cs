@@ -76,7 +76,7 @@ public sealed class CreateTemplateUseCase(
             initialVersion.FileFormat?.Name,
             template.CreatedAt,
             template.UpdatedAt,
-            template.GetConcurrencyToken()
+            template.Version
         );
     }
 

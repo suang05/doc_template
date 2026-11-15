@@ -44,4 +44,29 @@ public interface ISecurityAuditService
     /// Records post-commit deactivation of a user account.
     /// </summary>
     void LogUserDeactivated(Guid userId);
+
+    /// <summary>
+    /// Records issuance of a time-boxed SuperAdmin break-glass grant.
+    /// </summary>
+    void LogBreakGlassAccessGranted(Guid grantId, Guid projectId, Guid superAdminUserId, DateTimeOffset expiresAt);
+
+    /// <summary>
+    /// Records an audited data-plane access by a SuperAdmin operating under an active break-glass grant.
+    /// </summary>
+    void LogBreakGlassAccessUsed(Guid userId, Guid projectId, string path);
+
+    /// <summary>
+    /// Records explicit revocation of a break-glass grant.
+    /// </summary>
+    void LogBreakGlassAccessRevoked(Guid grantId, Guid projectId);
+
+    /// <summary>
+    /// Records usage of a transitional legacy SHA-256 API key that should be rotated to <c>smk_live_</c>.
+    /// </summary>
+    void LogLegacyApiKeyUsed(Guid apiKeyId, Guid projectId);
+
+    /// <summary>
+    /// Records an outbound connection blocked by the SSRF / egress validator.
+    /// </summary>
+    void LogEgressDenied(Guid? projectId, string schemeOrProvider, string reasonCategory);
 }

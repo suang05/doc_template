@@ -28,5 +28,5 @@ public sealed class ListProjectUsersUseCase(
             r.Role.ToString(),
             u.IsActive,
             u.CreatedAt,
-            r.GetConcurrencyToken());
+            r.Version);
 }

@@ -23,6 +23,7 @@ public interface ICurrentProjectContext
     ProjectId? TryGetProjectId();
 
     bool IsResolved { get; }
+    bool IsControlPlane { get; }
     string? CallerIdentity { get; }
     UserId? UserId { get; }
     SystemRole? SystemRole { get; }
@@ -31,11 +32,13 @@ public interface ICurrentProjectContext
 
 /// <summary>
 /// Internal write contract utilized exclusively by perimeter security middleware
-/// to hydrate the ambient context once per request lifecycle.
+/// and explicit worker tenant scopes to hydrate the ambient context.
 /// </summary>
 public interface ICurrentProjectContextSetter
 {
     void SetProject(ProjectId projectId, string? callerIdentity = null);
+
+    void SetControlPlane(string? callerIdentity = null);
 
     void SetActor(
         UserId? userId = null,

@@ -15,6 +15,11 @@ public sealed class DeactivateTemplateUseCase(
         var template = await templateRepo.GetByIdAsync(new TemplateId(command.TemplateId), ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
+        if (template.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         var now = timeProvider.GetUtcNow();
         template.Deactivate(now);
 

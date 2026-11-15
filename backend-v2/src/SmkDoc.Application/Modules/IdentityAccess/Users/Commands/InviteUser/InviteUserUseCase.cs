@@ -1,4 +1,3 @@
-using System.Globalization;
 using SmkDoc.Application.Modules.IdentityAccess.Users.DTOs;
 using SmkDoc.Application.Modules.IdentityAccess.Users.Services;
 using SmkDoc.Domain.Common;
@@ -26,10 +25,10 @@ public sealed class InviteUserUseCase(
         var user = await userAccountProcessor.GetOrRegisterUserAsync(command.Email, command.Password, command.FirstName, command.LastName, now, ct);
         await EnsureNotMemberAsync(pId, user, ct);
 
-        await AssignProjectRoleAsync(pId, user.Id, roleType, now, ct);
+        var role = await AssignProjectRoleAsync(pId, user.Id, roleType, now, ct);
         await uow.CommitAsync(ct);
 
-        return ToResultDto(user, roleType, now);
+        return ToResultDto(user, roleType, role.Version);
     }
 
     private async Task EnsureNotMemberAsync(Domain.ValueObjects.Ids.ProjectId pId, User user, CancellationToken ct)
@@ -41,7 +40,7 @@ public sealed class InviteUserUseCase(
         }
     }
 
-    private async Task AssignProjectRoleAsync(
+    private async Task<UserProjectRole> AssignProjectRoleAsync(
         Domain.ValueObjects.Ids.ProjectId pId,
         Domain.ValueObjects.Ids.UserId userId,
         RoleType roleType,
@@ -50,9 +49,10 @@ public sealed class InviteUserUseCase(
     {
         var newRole = UserProjectRole.Create(userId, pId, roleType, now);
         await roleRepo.AddAsync(newRole, ct);
+        return newRole;
     }
 
-    private static UserResultDto ToResultDto(User user, RoleType roleType, DateTimeOffset now) =>
+    private static UserResultDto ToResultDto(User user, RoleType roleType, long version) =>
         new(user.Id.Value,
             user.Email.Value,
             user.FirstName,
@@ -60,5 +60,5 @@ public sealed class InviteUserUseCase(
             roleType.Name,
             user.IsActive,
             user.CreatedAt,
-            now.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
+            version);
 }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Contracts.Authoring.Templates;
 using SmkDoc.Api.Filters;
@@ -79,12 +80,14 @@ public sealed class TemplateLifecycleController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> UpdateMetadata(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         [FromBody] UpdateTemplateMetadataRequest request,
         CancellationToken ct)
     {
-        var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category);
+        var command = new UpdateTemplateDetailsCommand(id, request.Name ?? string.Empty, request.Category, expectedVersion);
         var result = await updateTemplateDetailsUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<TemplateResultDto>(result));
     }
@@ -94,11 +97,13 @@ public sealed class TemplateLifecycleController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Deactivate(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
-        var command = new DeactivateTemplateCommand(id);
+        var command = new DeactivateTemplateCommand(id, expectedVersion);
         await deactivateTemplateUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

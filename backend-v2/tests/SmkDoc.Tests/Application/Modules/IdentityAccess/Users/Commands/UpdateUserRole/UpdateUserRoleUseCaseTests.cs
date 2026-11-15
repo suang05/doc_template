@@ -13,11 +13,13 @@ public sealed class UpdateUserRoleUseCaseTests
     private readonly IUserProjectRoleRepository _roleRepo = Substitute.For<IUserProjectRoleRepository>();
     private readonly IUserRepository _userRepo = Substitute.For<IUserRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
+    private readonly FakeTimeProvider _timeProvider = TestConstants.CreateFakeClock();
 
     private UpdateUserRoleUseCase CreateSut() => new(
         _roleRepo,
         _userRepo,
-        _uow);
+        _uow,
+        _timeProvider);
 
     [Fact]
     public async Task ExecuteAsync_WhenCommandIsInvalid_ShouldFailFastWithoutTouchingPersistence()

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.IdentityAccess.ApiKeys;
@@ -61,13 +62,15 @@ public sealed class ProjectApiKeysController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> RevokeKey(
         [FromRoute] Guid projectId,
         [FromRoute] Guid keyId,
+        [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
         _ = projectId;
-        var command = new RevokeApiKeyCommand(keyId);
+        var command = new RevokeApiKeyCommand(keyId, expectedVersion);
         await revokeApiKeyUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

@@ -29,7 +29,8 @@ public sealed class GetTemplateStudioBundleUseCase(
             SamplePayload: version.SamplePayload,
             DataSchema: version.DataSchema,
             Version: version.Version,
-            PageSettings: version.GetPageSettings()
+            PageSettings: version.GetPageSettings(),
+            AggregateVersion: template.Version
         );
     }
 }

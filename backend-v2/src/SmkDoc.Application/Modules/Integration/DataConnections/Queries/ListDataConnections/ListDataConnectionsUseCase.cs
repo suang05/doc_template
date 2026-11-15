@@ -14,6 +14,6 @@ public sealed class ListDataConnectionsUseCase(
             c.Provider.Name,
             c.CreatedAt,
             c.UpdatedAt,
-            c.GetConcurrencyToken())).ToList();
+            c.Version)).ToList();
     }
 }

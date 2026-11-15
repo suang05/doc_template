@@ -10,7 +10,7 @@ public sealed class UpdateDataConnectionUseCase(
     IDataConnectionRepository repository,
     IUnitOfWork unitOfWork,
     IDataProtectionService dataProtection,
-    ISqlConnectionValidator sqlValidator,
+    IConnectionHostValidator connectionValidator,
     TimeProvider timeProvider) : IUseCase<UpdateDataConnectionCommand, DataConnectionResultDto>
 {
     public async Task<DataConnectionResultDto> ExecuteAsync(UpdateDataConnectionCommand command, CancellationToken ct)
@@ -18,16 +18,21 @@ public sealed class UpdateDataConnectionUseCase(
         var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct)
             ?? throw new NotFoundException("DataConnection", command.Id);
 
+        if (entity.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         EncryptedConnectionString encryptedCs;
         if (string.IsNullOrEmpty(command.ConnectionString))
         {
             var existingPlaintext = dataProtection.Decrypt(entity.EncryptedConnectionString.Value);
-            await sqlValidator.ValidateConnectionTargetAsync(command.Provider, existingPlaintext, ct);
+            await connectionValidator.ValidateConnectionTargetAsync(command.Provider, existingPlaintext, entity.ProjectId, ct);
             encryptedCs = entity.EncryptedConnectionString;
         }
         else
         {
-            await sqlValidator.ValidateConnectionTargetAsync(command.Provider, command.ConnectionString, ct);
+            await connectionValidator.ValidateConnectionTargetAsync(command.Provider, command.ConnectionString, entity.ProjectId, ct);
             encryptedCs = EncryptedConnectionString.Create(dataProtection.Encrypt(command.ConnectionString));
         }
 
@@ -47,6 +52,6 @@ public sealed class UpdateDataConnectionUseCase(
             entity.Provider.Name,
             entity.CreatedAt,
             entity.UpdatedAt,
-            entity.GetConcurrencyToken());
+            entity.Version);
     }
 }

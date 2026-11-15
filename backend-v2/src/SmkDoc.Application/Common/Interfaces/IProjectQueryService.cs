@@ -5,13 +5,27 @@ namespace SmkDoc.Application.Common.Interfaces;
 
 /// <summary>
 /// Cross-aggregate read query service for paginated project listings.
-/// Executes optimized AsNoTracking database projections with direct DTO mapping.
+/// Executes optimized <c>AsNoTracking</c> projections respecting Zero Standing Access (ZSA)
+/// for Data Plane portal queries vs. explicit Control Plane management queries.
 /// </summary>
 public interface IProjectQueryService
 {
-    Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> ListPagedByUserAsync(
+    /// <summary>
+    /// Lists projects accessible to <paramref name="userId"/> via explicit <c>UserProjectRole</c>
+    /// membership or an active, unrevoked <c>BreakGlassGrant</c> at <paramref name="now"/>.
+    /// </summary>
+    Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> ListAccessiblePagedAsync(
         UserId userId,
-        bool isSuperAdmin,
+        DateTimeOffset now,
+        string? searchTerm,
+        int page,
+        int pageSize,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Lists all projects across the platform for Control Plane SuperAdmin management endpoints.
+    /// </summary>
+    Task<(IReadOnlyList<ProjectResultDto> Items, int TotalCount)> ListAllControlPlanePagedAsync(
         string? searchTerm,
         int page,
         int pageSize,

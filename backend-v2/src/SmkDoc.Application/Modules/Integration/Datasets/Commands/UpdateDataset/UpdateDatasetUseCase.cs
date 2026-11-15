@@ -21,6 +21,11 @@ public sealed class UpdateDatasetUseCase(
         var entity = await datasetRepo.GetByIdAsync(new DatasetId(command.Id), ct)
             ?? throw new NotFoundException("Dataset", command.Id);
 
+        if (entity.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         var now = timeProvider.GetUtcNow();
         entity.UpdateDetails(
             DatasetName.Create(command.Name),
@@ -43,6 +48,6 @@ public sealed class UpdateDatasetUseCase(
             entity.CacheSeconds,
             entity.CreatedAt,
             entity.UpdatedAt,
-            entity.GetConcurrencyToken());
+            entity.Version);
     }
 }

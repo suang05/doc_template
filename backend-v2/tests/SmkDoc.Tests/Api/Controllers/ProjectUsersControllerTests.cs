@@ -51,7 +51,7 @@ public sealed class ProjectUsersControllerTests
         // Arrange
         var users = new List<UserResultDto>
         {
-            new(Guid.NewGuid(), "dev@sammakorn.co.th", "Dev", "User", "Developer", true, DateTimeOffset.UtcNow, "54321")
+            new(Guid.NewGuid(), "dev@sammakorn.co.th", "Dev", "User", "Developer", true, DateTimeOffset.UtcNow, 1L)
         };
         _listUseCase.ExecuteAsync(Arg.Any<ListProjectUsersQuery>(), Arg.Any<CancellationToken>())
             .Returns(users);
@@ -83,7 +83,7 @@ public sealed class ProjectUsersControllerTests
             request.Role,
             true,
             DateTimeOffset.UtcNow,
-            "12345");
+            1L);
 
         _inviteUseCase.ExecuteAsync(Arg.Is<InviteUserCommand>(c => c.Email == request.Email && c.Role == request.Role), Arg.Any<CancellationToken>())
             .Returns(createdUser);
@@ -111,13 +111,13 @@ public sealed class ProjectUsersControllerTests
             "Admin",
             true,
             DateTimeOffset.UtcNow,
-            "12345");
+            2L);
 
-        _updateRoleUseCase.ExecuteAsync(Arg.Is<UpdateUserRoleCommand>(c => c.UserId == targetUserId && c.Role == "Admin"), Arg.Any<CancellationToken>())
+        _updateRoleUseCase.ExecuteAsync(Arg.Is<UpdateUserRoleCommand>(c => c.UserId == targetUserId && c.Role == "Admin" && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(updatedUser);
 
         // Act
-        var result = await CreateSut().UpdateRole(targetUserId, request, CancellationToken.None);
+        var result = await CreateSut().UpdateRole(targetUserId, 1L, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
@@ -132,12 +132,12 @@ public sealed class ProjectUsersControllerTests
         var targetUserId = Guid.NewGuid();
 
         // Act
-        var result = await CreateSut().Remove(targetUserId, CancellationToken.None);
+        var result = await CreateSut().Remove(targetUserId, 1L, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
         await _removeUseCase.Received(1).ExecuteAsync(
-            Arg.Is<RemoveUserCommand>(c => c.UserId == targetUserId && c.CurrentUserId == _currentUserId),
+            Arg.Is<RemoveUserCommand>(c => c.UserId == targetUserId && c.CurrentUserId == _currentUserId && c.ExpectedVersion == 1L),
             Arg.Any<CancellationToken>());
     }
 }

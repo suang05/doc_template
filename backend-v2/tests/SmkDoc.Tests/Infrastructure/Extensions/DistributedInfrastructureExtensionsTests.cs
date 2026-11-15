@@ -2,66 +2,24 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Infrastructure.Cache;
 using SmkDoc.Infrastructure.Extensions;
-using SmkDoc.Infrastructure.Queue;
+using SmkDoc.Infrastructure.Notifications;
+using StackExchange.Redis;
 
 namespace SmkDoc.Tests.Infrastructure.Extensions;
 
 public sealed class DistributedInfrastructureExtensionsTests
 {
-    [Fact]
-    public void AddDistributedInfrastructure_InProductionWithoutRedis_ThrowsInvalidOperationException()
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Production")]
+    public void AddDistributedInfrastructure_WithoutRedis_RegistersPostgresIdempotencyMemoryCacheAndWebhookClient(string environmentName)
     {
         // Arrange
-        var inMemorySettings = new Dictionary<string, string?>
-        {
-            ["ASPNETCORE_ENVIRONMENT"] = "Production"
-        };
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(inMemorySettings)
-            .Build();
-
-        var services = new ServiceCollection();
-
-        // Act
-        var act = () => services.AddDistributedInfrastructure(configuration);
-
-        // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*strictly required in Production environment*");
-    }
-
-    [Fact]
-    public void AddDistributedInfrastructure_WhenEnforceDistributedFlagTrueWithoutRedis_ThrowsInvalidOperationException()
-    {
-        // Arrange
-        var inMemorySettings = new Dictionary<string, string?>
-        {
-            ["EnforceDistributedInfrastructure"] = "true"
-        };
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(inMemorySettings)
-            .Build();
-
-        var services = new ServiceCollection();
-
-        // Act
-        var act = () => services.AddDistributedInfrastructure(configuration);
-
-        // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*strictly required in Production environment*");
-    }
-
-    [Fact]
-    public void AddDistributedInfrastructure_InDevelopmentWithoutRedis_RegistersMemoryFallbacks()
-    {
-        // Arrange
-        var inMemorySettings = new Dictionary<string, string?>
-        {
-            ["ASPNETCORE_ENVIRONMENT"] = "Development"
-        };
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(inMemorySettings)
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ASPNETCORE_ENVIRONMENT"] = environmentName
+            })
             .Build();
 
         var services = new ServiceCollection();
@@ -70,17 +28,20 @@ public sealed class DistributedInfrastructureExtensionsTests
         services.AddDistributedInfrastructure(configuration);
 
         // Assert
-        var renderQueueDesc = services.FirstOrDefault(d => d.ServiceType == typeof(IDocumentRenderQueue));
-        renderQueueDesc.Should().NotBeNull();
-        renderQueueDesc!.ImplementationType.Should().Be<MemoryDocumentRenderQueue>();
+        services.FirstOrDefault(d => d.ServiceType == typeof(IConnectionMultiplexer)).Should().BeNull();
 
         var idempotencyDesc = services.FirstOrDefault(d => d.ServiceType == typeof(IIdempotencyStore));
         idempotencyDesc.Should().NotBeNull();
-        idempotencyDesc!.ImplementationType.Should().Be<MemoryIdempotencyStore>();
+        idempotencyDesc!.Lifetime.Should().Be(ServiceLifetime.Singleton);
+        idempotencyDesc.ImplementationType.Should().BeNull();
+        idempotencyDesc.ImplementationFactory.Should().NotBeNull();
 
         var datasetCacheDesc = services.FirstOrDefault(d => d.ServiceType == typeof(IDatasetResultCache));
         datasetCacheDesc.Should().NotBeNull();
         datasetCacheDesc!.ImplementationType.Should().Be<MemoryDatasetResultCache>();
+
+        var webhookDesc = services.FirstOrDefault(d => d.ServiceType == typeof(IWebhookDispatcher));
+        webhookDesc.Should().NotBeNull();
+        webhookDesc!.ImplementationType.Should().Be<WebhookDispatcher>();
     }
 }
-

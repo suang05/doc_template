@@ -43,7 +43,7 @@ public sealed class SaveTemplateMappingsUseCaseTests
             new("customerName", "customer.name", "ชื่อลูกค้า", true, null, "thai_baht_text", 1)
         };
 
-        var command = new SaveTemplateMappingsCommand(templateId, items);
+        var command = new SaveTemplateMappingsCommand(templateId, items, template.Version);
 
         // Act
         await CreateSut().ExecuteAsync(command, CancellationToken.None);

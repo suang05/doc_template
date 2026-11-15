@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SmkDoc.Api.Common.Responses;
@@ -73,7 +72,6 @@ public sealed class TemplateLifecycleControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var token = now.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         var resultDto = new TemplateResultDto(
             templateId,
             Guid.NewGuid(),
@@ -85,7 +83,7 @@ public sealed class TemplateLifecycleControllerTests
             "html",
             now,
             null,
-            token);
+            1L);
 
         _getTemplateByIdUseCase.ExecuteAsync(Arg.Is<GetTemplateByIdQuery>(q => q.Id == templateId), Arg.Any<CancellationToken>())
             .Returns(resultDto);
@@ -117,7 +115,7 @@ public sealed class TemplateLifecycleControllerTests
             "html",
             now,
             null,
-            "123");
+            1L);
 
         _createTemplateUseCase.ExecuteAsync(Arg.Any<CreateTemplateCommand>(), Arg.Any<CancellationToken>())
             .Returns(resultDto);
@@ -139,7 +137,6 @@ public sealed class TemplateLifecycleControllerTests
         var sut = CreateSut();
         var templateId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
-        var token = now.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
         var resultDto = new TemplateResultDto(
             templateId,
             Guid.NewGuid(),
@@ -151,17 +148,17 @@ public sealed class TemplateLifecycleControllerTests
             "html",
             now.AddDays(-1),
             now,
-            token);
+            2L);
 
         _updateTemplateDetailsUseCase.ExecuteAsync(
-            Arg.Is<UpdateTemplateDetailsCommand>(c => c.TemplateId == templateId),
+            Arg.Is<UpdateTemplateDetailsCommand>(c => c.TemplateId == templateId && c.ExpectedVersion == 1L),
             Arg.Any<CancellationToken>())
             .Returns(resultDto);
 
         var request = new UpdateTemplateMetadataRequest("New Template Name", "Billing");
 
         // Act
-        var result = await sut.UpdateMetadata(templateId, request, CancellationToken.None);
+        var result = await sut.UpdateMetadata(templateId, 1L, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
@@ -177,11 +174,11 @@ public sealed class TemplateLifecycleControllerTests
         var templateId = Guid.NewGuid();
 
         // Act
-        var result = await sut.Deactivate(templateId, CancellationToken.None);
+        var result = await sut.Deactivate(templateId, 1L, CancellationToken.None);
 
         // Assert
         await _deactivateTemplateUseCase.Received(1).ExecuteAsync(
-            Arg.Is<DeactivateTemplateCommand>(c => c.TemplateId == templateId),
+            Arg.Is<DeactivateTemplateCommand>(c => c.TemplateId == templateId && c.ExpectedVersion == 1L),
             Arg.Any<CancellationToken>());
         result.Should().BeOfType<NoContentResult>();
     }

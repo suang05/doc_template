@@ -59,7 +59,7 @@ public sealed class CreateApiKeyUseCaseTests
 
         capturedKey.Should().NotBeNull();
         capturedKey!.ProjectId.Should().Be(new ProjectId(projectId));
-        capturedKey.KeyHash.Value.Should().Be(ApiKeyGenerator.ComputeHash(result.PlainTextKey));
+        capturedKey.KeyHash!.Value.Should().Be(ApiKeyGenerator.ComputeHash(result.PlainTextKey));
 
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
@@ -86,8 +86,9 @@ public sealed class CreateApiKeyUseCaseTests
         var act = () => CreateSut().ExecuteAsync(command, CancellationToken.None);
 
         // Assert
-        await act.Should().ThrowAsync<ConflictException>()
+        var ex = await act.Should().ThrowAsync<BusinessRuleViolationException>()
             .WithMessage("*maximum quota of 2 active API keys*");
+        ex.Which.ErrorCode.Should().Be("QUOTA_EXCEEDED");
     }
 
     [Fact]

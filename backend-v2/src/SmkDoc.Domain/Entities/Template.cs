@@ -1,4 +1,3 @@
-using System.Globalization;
 using SmkDoc.Domain.Common;
 using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.Events;
@@ -21,9 +20,6 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
     public string? Category { get; private set; }
     public bool IsActive { get; private set; }
     public Guid? CurrentVersionId { get; private set; }
-
-    public override string? GetAlternateConcurrencyToken() =>
-        CurrentVersion?.Version.ToString(CultureInfo.InvariantCulture) ?? CurrentVersionId?.ToString();
 
     private readonly List<FieldMapping> _fieldMappings = new();
     private readonly List<TemplateVersion> _versions = new();
@@ -54,6 +50,7 @@ public sealed class Template : AggregateRoot<TemplateId>, IMustHaveProject
         Slug = Guard.NotNull(slug, nameof(Slug));
         Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
         IsActive = true;
+        AddDomainEvent(new TemplateCreatedDomainEvent(Id, ProjectId, Slug.Value, now));
     }
 
     /// <summary>

@@ -23,6 +23,11 @@ public sealed class RollbackTemplateVersionUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' was not found.");
 
+        if (template.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         _ = template.GetPublishedVersion();
 
         var targetVersion = template.FindVersion(command.TargetVersion)
@@ -47,6 +52,6 @@ public sealed class RollbackTemplateVersionUseCase(
         templateRepo.Update(template);
         await unitOfWork.CommitAsync(ct);
 
-        return new RollbackVersionResultDto(newVersion.Version);
+        return new RollbackVersionResultDto(newVersion.Version, template.Version);
     }
 }

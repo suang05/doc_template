@@ -272,8 +272,9 @@ public sealed class TemplateTests
         template.CurrentVersionId.Should().Be(version.Id);
         template.UpdatedAt.Should().Be(pubTime);
 
-        template.DomainEvents.Should().ContainSingle()
-            .Which.Should().BeOfType<TemplatePublishedDomainEvent>()
+        template.DomainEvents.Should().HaveCount(2);
+        template.DomainEvents.Should().ContainItemsAssignableTo<TemplateCreatedDomainEvent>();
+        template.DomainEvents.OfType<TemplatePublishedDomainEvent>().Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new
             {
                 TemplateId = template.Id,

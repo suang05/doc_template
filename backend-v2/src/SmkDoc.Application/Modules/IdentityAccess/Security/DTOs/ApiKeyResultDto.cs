@@ -1,7 +1,9 @@
+using System.Text.Json.Serialization;
+
 namespace SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 
 /// <summary>
-/// Result DTO representing an API Key record. MaskedKey exposes only the prefix and trailing hash characters.
+/// Result DTO representing an API Key record. MaskedKey exposes only the key prefix and trailing characters.
 /// </summary>
 public sealed record ApiKeyResultDto(
     Guid Id,
@@ -12,8 +14,12 @@ public sealed record ApiKeyResultDto(
     DateTimeOffset CreatedAt,
     string Scope = "ReadWrite",
     string MaskedKey = "",
-    string? ConcurrencyToken = null
-) : IHasConcurrencyToken;
+    [property: JsonIgnore] long Version = 1
+) : IHasVersion, IHasResourceId
+{
+    [JsonIgnore]
+    public Guid ResourceId => Id;
+}
 
 /// <summary>
 /// Result returned immediately after creating an API key, containing the one-time plain-text key.
@@ -24,10 +30,14 @@ public sealed record CreateApiKeyResultDto(
     string CallerApp,
     string PlainTextKey,
     string Scope = "ReadWrite",
-    DateTimeOffset? ExpiresAt = null
-)
+    DateTimeOffset? ExpiresAt = null,
+    [property: JsonIgnore] long Version = 1
+) : IHasVersion, IHasResourceId
 {
     public string Key => PlainTextKey;
+
+    [JsonIgnore]
+    public Guid ResourceId => Id;
 }
 
 /// <summary>

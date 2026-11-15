@@ -11,15 +11,16 @@ namespace SmkDoc.Application.Modules.Integration.Datasets.Services;
 public sealed class DatasetResolver(
     IDataConnectionRepository connectionRepo,
     IDatasetRepository datasetRepo,
-    ISqlConnectionValidator sqlValidator,
-    IDataProtectionService dataProtection) : IDatasetResolver
+    IConnectionHostValidator connectionValidator,
+    IDataProtectionService dataProtection,
+    ICurrentProjectContext? projectContext = null) : IDatasetResolver
 {
     public async Task<DataConnection> ValidateAndResolveConnectionAsync(
         DataConnectionId connectionId,
         string sqlQuery,
         CancellationToken ct = default)
     {
-        sqlValidator.ValidateReadOnlySql(sqlQuery);
+        connectionValidator.ValidateReadOnlySql(sqlQuery);
 
         return await connectionRepo.GetByIdAsync(connectionId, ct)
             ?? throw new NotFoundException($"DataConnection '{connectionId.Value}' not found.");
@@ -30,7 +31,8 @@ public sealed class DatasetResolver(
         string connectionString,
         CancellationToken ct = default)
     {
-        await sqlValidator.ValidateConnectionTargetAsync(provider, connectionString, ct);
+        var projectId = projectContext?.TryGetProjectId();
+        await connectionValidator.ValidateConnectionTargetAsync(provider, connectionString, projectId, ct);
         return EncryptedConnectionString.Create(dataProtection.Encrypt(connectionString));
     }
 

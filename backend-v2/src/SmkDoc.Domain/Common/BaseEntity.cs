@@ -25,8 +25,15 @@ public abstract class BaseEntity<TId> : IEquatable<BaseEntity<TId>>
         CreatedAt = createdAt;
     }
 
-    protected void SetUpdated(DateTimeOffset now) =>
+    protected virtual void SetUpdated(DateTimeOffset now)
+    {
+        if (now == default)
+        {
+            throw new Exceptions.DomainValidationException("Update timestamp cannot be default.");
+        }
+
         UpdatedAt = now;
+    }
 
     public override bool Equals(object? obj) =>
         obj is BaseEntity<TId> other && Equals(other);

@@ -169,6 +169,7 @@ public sealed partial class GlobalExceptionHandler(
         exception switch
         {
             DomainException domainEx => ResolveDomainException(domainEx),
+            SecurityViolationException securityEx => (StatusCodes.Status403Forbidden, "Forbidden", securityEx.ErrorCode),
             PreconditionFailedException precond => precond.ErrorCode == ErrorCodes.PreconditionRequired
                 ? (StatusCodes.Status428PreconditionRequired, "Precondition Required", precond.ErrorCode)
                 : (StatusCodes.Status412PreconditionFailed, "Precondition Failed", precond.ErrorCode),

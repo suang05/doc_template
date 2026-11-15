@@ -10,5 +10,6 @@ public sealed record SaveTemplateHtmlCommand(
     string Html,
     string? SamplePayload = null,
     string? ChangeNote = null,
-    TemplatePageSettings? PageSettings = null
+    TemplatePageSettings? PageSettings = null,
+    long ExpectedVersion = 1
 );

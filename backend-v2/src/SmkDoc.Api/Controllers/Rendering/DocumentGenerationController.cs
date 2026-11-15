@@ -27,8 +27,29 @@ public sealed class DocumentGenerationController(
     IUseCase<GetDocumentJobQuery, DocumentJobDto> getJobUseCase,
     IUseCase<PreviewDocumentQuery, Stream> previewUseCase) : ControllerBase
 {
-    /// <summary>Track 1: Synchronous document generation from template slug and input JSON data.</summary>
+    /// <summary>Generate a document synchronously from a published template slug and input JSON payload.</summary>
+    [HttpPost]
+    [Idempotent]
+    [EnableRateLimiting("rendering")]
+    [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> CreateDocument([FromBody] CreateDocumentRequest request, CancellationToken ct)
+    {
+        var command = new GenerateDocumentCommand(
+            request.Slug,
+            request.Payload,
+            request.OutputFormat,
+            request.DocumentRef,
+            request.ChangeNote,
+            request.SkipValidation ?? false);
+        var result = await generateUseCase.ExecuteAsync(command, ct);
+        return Created(new Uri(result.Url, UriKind.RelativeOrAbsolute), new ApiResponse<GenerateDocumentResultDto>(result));
+    }
+
+    /// <summary>Track 1 (Legacy): Synchronous document generation from template slug and input JSON data. Use POST /api/v1/documents instead.</summary>
     [HttpPost("generate/{slug}")]
+    [DeprecatedEndpoint]
     [Idempotent]
     [EnableRateLimiting("rendering")]
     [ProducesResponseType(typeof(ApiResponse<GenerateDocumentResultDto>), StatusCodes.Status200OK)]
@@ -40,8 +61,9 @@ public sealed class DocumentGenerationController(
         return Ok(new ApiResponse<GenerateDocumentResultDto>(result));
     }
 
-    /// <summary>Track 2: Asynchronous document generation queue for high-volume enterprise batches (HTTP 202).</summary>
+    /// <summary>Track 2 (Legacy): Asynchronous document generation queue (HTTP 202). Use POST /api/v1/document-jobs instead.</summary>
     [HttpPost("generate-async/{slug}")]
+    [DeprecatedEndpoint]
     [Idempotent]
     [EnableRateLimiting("rendering")]
     [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status202Accepted)]
@@ -50,14 +72,16 @@ public sealed class DocumentGenerationController(
     {
         var command = new EnqueueDocumentGenerationCommand(slug, request.Payload, request.OutputFormat, request.DocumentRef, request.ChangeNote, request.SkipValidation ?? false);
         var result = await enqueueJobUseCase.ExecuteAsync(command, ct);
+        Response.Headers.RetryAfter = "2";
         return AcceptedAtAction(
             nameof(GetJobStatus),
             new { jobId = result.JobId },
             new ApiResponse<DocumentJobDto>(result));
     }
 
-    /// <summary>Track 2: Observability &amp; Polling endpoint to check status of an asynchronous document job.</summary>
+    /// <summary>Track 2 (Legacy): Polling endpoint to check status of an asynchronous document job. Use GET /api/v1/document-jobs/{jobId} instead.</summary>
     [HttpGet("jobs/{jobId:guid}")]
+    [DeprecatedEndpoint]
     [ProducesResponseType(typeof(ApiResponse<DocumentJobDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJobStatus([FromRoute] Guid jobId, CancellationToken ct)

@@ -25,7 +25,7 @@ public sealed class GetTemplateByIdUseCase(ITemplateRepository templateRepo) : I
             template.CurrentVersion?.FileFormat?.Name,
             template.CreatedAt,
             template.UpdatedAt,
-            template.GetConcurrencyToken()
+            template.Version
         );
     }
 }

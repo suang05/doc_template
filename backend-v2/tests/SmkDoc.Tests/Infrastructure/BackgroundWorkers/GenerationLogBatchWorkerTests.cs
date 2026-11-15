@@ -27,7 +27,7 @@ public sealed class GenerationLogBatchWorkerTests
         _unitOfWork.CommitAsync(Arg.Any<CancellationToken>()).Returns(1);
     }
 
-    private static GenerationLog CreateSampleLog()
+    private GenerationLog CreateSampleLog(ProjectId? projectId = null)
     {
         var target = GenerationTarget.ForTemplate(
             TemplateId.New(),
@@ -40,11 +40,11 @@ public sealed class GenerationLogBatchWorkerTests
 
         return GenerationLog.CreateSuccess(
             Guid.NewGuid(),
-            ProjectId.New(),
+            projectId ?? new ProjectId(TestConstants.DefaultProjectId),
             target,
             context,
             GenerationMetrics.Of(120, 2048),
-            DateTimeOffset.UtcNow);
+            _timeProvider.GetUtcNow());
     }
 
     [Fact]

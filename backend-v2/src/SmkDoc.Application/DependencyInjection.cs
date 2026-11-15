@@ -2,12 +2,14 @@ using System.Diagnostics.CodeAnalysis;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Common.Localization;
 using SmkDoc.Application.Modules.Authoring;
 using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.IdentityAccess;
 using SmkDoc.Application.Modules.Integration;
 using SmkDoc.Application.Modules.Rendering;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
+using SmkDoc.Application.Modules.TenantManagement;
 
 namespace SmkDoc.Application;
 
@@ -18,6 +20,7 @@ public static class DependencyInjection
     {
         // Shared Kernel & Helpers
         services.AddSingleton<IMathExpressionResolver, MathExpressionResolverService>();
+        services.AddSingleton<ILocalizedDataFormatter, ThaiDataFormatter>();
         services.AddScoped<IDatasetBatchExecutor, DatasetBatchExecutor>();
         services.AddScoped<IDataBindingEngine, DataBindingEngine>();
 
@@ -32,6 +35,9 @@ public static class DependencyInjection
 
         // 4. IdentityAccess Bounded Context (Users, Projects, Security/Auth, ApiKeys)
         services.AddIdentityAccessModule();
+
+        // 5. TenantManagement Control Plane Bounded Context (Quotas, Platform Fonts, BreakGlass, Lifecycle)
+        services.AddTenantManagementModule();
 
         // Register all FluentValidation validators in this assembly
         services.AddValidatorsFromAssemblyContaining<GenerateDocumentCommandValidator>();

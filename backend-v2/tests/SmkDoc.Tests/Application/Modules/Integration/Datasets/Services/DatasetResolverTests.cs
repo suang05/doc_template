@@ -10,7 +10,7 @@ public sealed class DatasetResolverTests
 {
     private readonly IDataConnectionRepository _connectionRepo = Substitute.For<IDataConnectionRepository>();
     private readonly IDatasetRepository _datasetRepo = Substitute.For<IDatasetRepository>();
-    private readonly ISqlConnectionValidator _sqlValidator = Substitute.For<ISqlConnectionValidator>();
+    private readonly IConnectionHostValidator _sqlValidator = Substitute.For<IConnectionHostValidator>();
     private readonly IDataProtectionService _dataProtection = Substitute.For<IDataProtectionService>();
 
     private DatasetResolver CreateSut() => new(
@@ -271,7 +271,7 @@ public sealed class DatasetResolverTests
 
         // Assert
         result.Value.Should().Be("enc:Host=127.0.0.1;Database=test;Password=secret");
-        await _sqlValidator.Received(1).ValidateConnectionTargetAsync(provider, rawCs, Arg.Any<CancellationToken>());
+        await _sqlValidator.Received(1).ValidateConnectionTargetAsync(provider, rawCs, Arg.Any<ProjectId?>(), Arg.Any<CancellationToken>());
         _dataProtection.Received(1).Encrypt(rawCs);
     }
 }

@@ -46,19 +46,31 @@ public sealed class ListApiKeysUseCaseTests
             .WithKeyHash(new Sha256Hash(new string('2', 60) + "cdef"))
             .WithExpiration(ExpirationPolicy.Never)
             .WithTime(now);
+        ApiKey structuredKey = ApiKey.IssueStructured(
+            new ProjectId(projectId),
+            ApiKeyName.Create("Live Key"),
+            "erp-live",
+            "smk_live",
+            "1234567890ab",
+            "wxyz",
+            new byte[32],
+            ExpirationPolicy.Never,
+            now);
 
         _apiKeyRepo.ListCurrentProjectAsync(Arg.Any<CancellationToken>())
-            .Returns(new List<ApiKey> { key1, key2 });
+            .Returns(new List<ApiKey> { key1, key2, structuredKey });
 
         // Act
         List<ApiKeyResultDto> result = await CreateSut().ExecuteAsync(new ListApiKeysQuery(), CancellationToken.None);
 
         // Assert
-        result.Should().HaveCount(2);
+        result.Should().HaveCount(3);
         result[0].Name.Should().Be("ERP Key");
-        result[0].MaskedKey.Should().Be("smk_erp_****abcd");
+        result[0].MaskedKey.Should().Be("smk_legacy_****");
         result[1].Name.Should().Be("CRM Key");
-        result[1].MaskedKey.Should().Be("smk_crm_****cdef");
+        result[1].MaskedKey.Should().Be("smk_legacy_****");
+        result[2].Name.Should().Be("Live Key");
+        result[2].MaskedKey.Should().Be("smk_live_1234567890ab_****wxyz");
         await _apiKeyRepo.Received(1).ListCurrentProjectAsync(Arg.Any<CancellationToken>());
         await _apiKeyRepo.DidNotReceive().ListAllAsync(Arg.Any<CancellationToken>());
     }

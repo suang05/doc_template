@@ -13,6 +13,11 @@ public sealed class RevokeApiKeyUseCase(
     public async Task ExecuteAsync(RevokeApiKeyCommand command, CancellationToken ct)
     {
         var key = await ResolveTargetKeyAsync(new ApiKeyId(command.Id), ct);
+        if (key.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         key.Revoke(timeProvider.GetUtcNow());
         apiKeyRepo.Update(key);
         await unitOfWork.CommitAsync(ct);

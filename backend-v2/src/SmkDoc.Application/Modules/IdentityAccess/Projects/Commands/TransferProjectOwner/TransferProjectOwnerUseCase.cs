@@ -20,6 +20,10 @@ public sealed class TransferProjectOwnerUseCase(
         var projectId = new ProjectId(command.ProjectId);
         var newOwnerId = new UserId(command.NewOwnerUserId);
         var project = await EnsureValidTransferEntitiesAsync(projectId, newOwnerId, ct);
+        if (project.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
 
         var now = timeProvider.GetUtcNow();
         project.RecordOwnershipTransfer(now);
@@ -48,15 +52,15 @@ public sealed class TransferProjectOwnerUseCase(
     private async Task ReassignAdminRolesAsync(ProjectId projectId, UserId newOwnerId, DateTimeOffset now, CancellationToken ct)
     {
         var existingRoles = await userRoleRepo.ListByProjectAsync(projectId, ct);
-        DowngradePriorAdmins(existingRoles, newOwnerId);
+        DowngradePriorAdmins(existingRoles, newOwnerId, now);
         await AssignNewOwnerAdminRoleAsync(existingRoles, projectId, newOwnerId, now, ct);
     }
 
-    private void DowngradePriorAdmins(IReadOnlyList<UserProjectRole> existingRoles, UserId newOwnerId)
+    private void DowngradePriorAdmins(IReadOnlyList<UserProjectRole> existingRoles, UserId newOwnerId, DateTimeOffset now)
     {
         foreach (var role in existingRoles.Where(r => r.Role == RoleType.Admin && r.UserId != newOwnerId))
         {
-            role.UpdateRole(RoleType.Developer);
+            role.UpdateRole(RoleType.Developer, now);
             userRoleRepo.Update(role);
         }
     }
@@ -71,7 +75,7 @@ public sealed class TransferProjectOwnerUseCase(
         var targetRole = existingRoles.FirstOrDefault(r => r.UserId == newOwnerId);
         if (targetRole != null)
         {
-            targetRole.UpdateRole(RoleType.Admin);
+            targetRole.UpdateRole(RoleType.Admin, now);
             userRoleRepo.Update(targetRole);
             return;
         }

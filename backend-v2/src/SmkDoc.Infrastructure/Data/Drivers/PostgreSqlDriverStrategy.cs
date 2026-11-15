@@ -2,6 +2,9 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
+using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using Dapper;
@@ -13,48 +16,35 @@ using SmkDoc.Application.Modules.Integration.Datasets.DTOs;
 namespace SmkDoc.Infrastructure.Data.Drivers;
 
 /// <summary>
-/// PostgreSQL database driver strategy utilizing Npgsql with transaction-level read-only guard.
-/// Streams query results directly to JSON via DbDataReader and Utf8JsonWriter to eliminate LOH allocations.
+/// PostgreSQL database driver strategy utilizing Npgsql with pinned-IP egress transport and
+/// transaction-level read-only guards. Streams query results via DbDataReader and Utf8JsonWriter.
 /// </summary>
 public sealed class PostgreSqlDriverStrategy : ISqlDriverStrategy
 {
     public string ProviderName => "PostgreSQL";
 
-    public async Task<string> ExecuteQueryAsJsonAsync(
+    public Task<string> ExecuteQueryAsJsonAsync(
         string connectionString,
         string sqlQuery,
         IDictionary<string, object>? parameters,
         int commandTimeoutSeconds,
+        CancellationToken ct) =>
+        ExecuteQueryWithPinnedTargetAsync(connectionString, sqlQuery, parameters, commandTimeoutSeconds, null, ct);
+
+    public async Task<string> ExecuteQueryWithPinnedTargetAsync(
+        string connectionString,
+        string sqlQuery,
+        IDictionary<string, object>? parameters,
+        int commandTimeoutSeconds,
+        ResolvedEgressTarget? pinnedTarget,
         CancellationToken ct)
     {
-        await using var dbConnection = new NpgsqlConnection(connectionString);
-        await dbConnection.OpenAsync(ct);
-
+        await using var dbConnection = await OpenPinnedConnectionAsync(connectionString, pinnedTarget, ct);
         await using var transaction = await dbConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
-        var readOnlyGuardCommand = new CommandDefinition(
-            "SET TRANSACTION READ ONLY;",
-            transaction: transaction,
-            commandTimeout: commandTimeoutSeconds,
-            cancellationToken: ct);
-        await dbConnection.ExecuteAsync(readOnlyGuardCommand);
+        await EnforceReadOnlyTransactionAsync(dbConnection, transaction, commandTimeoutSeconds, ct);
 
-        var dapperParams = new DynamicParameters();
-        if (parameters != null)
-        {
-            foreach (var param in parameters)
-            {
-                dapperParams.Add(param.Key, param.Value);
-            }
-        }
-
-        var command = new CommandDefinition(
-            sqlQuery,
-            dapperParams,
-            transaction: transaction,
-            commandTimeout: commandTimeoutSeconds,
-            cancellationToken: ct);
-
+        var command = BuildCommandDefinition(sqlQuery, parameters, transaction, commandTimeoutSeconds, ct);
         await using var reader = await dbConnection.ExecuteReaderAsync(command);
 
         await using var spool = new HybridSpoolStream();
@@ -162,44 +152,32 @@ public sealed class PostgreSqlDriverStrategy : ISqlDriverStrategy
         }
     }
 
-    public async Task<DryRunExecutionResult> ExecuteDryRunAsync(
+    public Task<DryRunExecutionResult> ExecuteDryRunAsync(
         string connectionString,
         string sqlQuery,
         IDictionary<string, object>? parameters,
         int maxRows,
         int commandTimeoutSeconds,
+        CancellationToken ct) =>
+        ExecuteDryRunWithPinnedTargetAsync(connectionString, sqlQuery, parameters, maxRows, commandTimeoutSeconds, null, ct);
+
+    public async Task<DryRunExecutionResult> ExecuteDryRunWithPinnedTargetAsync(
+        string connectionString,
+        string sqlQuery,
+        IDictionary<string, object>? parameters,
+        int maxRows,
+        int commandTimeoutSeconds,
+        ResolvedEgressTarget? pinnedTarget,
         CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
 
-        await using var dbConnection = new NpgsqlConnection(connectionString);
-        await dbConnection.OpenAsync(ct);
-
+        await using var dbConnection = await OpenPinnedConnectionAsync(connectionString, pinnedTarget, ct);
         await using var transaction = await dbConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
-        var readOnlyGuardCommand = new CommandDefinition(
-            "SET TRANSACTION READ ONLY;",
-            transaction: transaction,
-            commandTimeout: commandTimeoutSeconds,
-            cancellationToken: ct);
-        await dbConnection.ExecuteAsync(readOnlyGuardCommand);
+        await EnforceReadOnlyTransactionAsync(dbConnection, transaction, commandTimeoutSeconds, ct);
 
-        var dapperParams = new DynamicParameters();
-        if (parameters != null)
-        {
-            foreach (var param in parameters)
-            {
-                dapperParams.Add(param.Key, param.Value);
-            }
-        }
-
-        var command = new CommandDefinition(
-            sqlQuery,
-            dapperParams,
-            transaction: transaction,
-            commandTimeout: commandTimeoutSeconds,
-            cancellationToken: ct);
-
+        var command = BuildCommandDefinition(sqlQuery, parameters, transaction, commandTimeoutSeconds, ct);
         await using var reader = await dbConnection.ExecuteReaderAsync(command);
 
         var columnSchema = await reader.GetColumnSchemaAsync(ct);
@@ -226,6 +204,87 @@ public sealed class PostgreSqlDriverStrategy : ISqlDriverStrategy
         stopwatch.Stop();
 
         return new DryRunExecutionResult(columns, rows, stopwatch.ElapsedMilliseconds);
+    }
+
+    private static async Task<NpgsqlConnection> OpenPinnedConnectionAsync(
+        string connectionString,
+        ResolvedEgressTarget? pinnedTarget,
+        CancellationToken ct)
+    {
+        if (pinnedTarget is null || pinnedTarget.PinnedAddresses.Count == 0)
+        {
+            var directConn = new NpgsqlConnection(connectionString);
+            await directConn.OpenAsync(ct);
+            return directConn;
+        }
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Host = pinnedTarget.PinnedAddresses[0].ToString(),
+            Port = pinnedTarget.Port
+        };
+
+        var pinnedConn = new NpgsqlConnection(builder.ConnectionString);
+        if (!IPAddress.TryParse(pinnedTarget.NormalizedHost, out _) && builder.SslMode != SslMode.Disable)
+        {
+            string expectedHostname = pinnedTarget.NormalizedHost;
+            pinnedConn.SslClientAuthenticationOptionsCallback = sslOptions =>
+            {
+                sslOptions.TargetHost = expectedHostname;
+                sslOptions.RemoteCertificateValidationCallback = (_, certificate, _, sslPolicyErrors) =>
+                {
+                    if (sslPolicyErrors == SslPolicyErrors.None)
+                    {
+                        return true;
+                    }
+
+                    return sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch &&
+                           certificate is X509Certificate2 cert2 &&
+                           cert2.MatchesHostname(expectedHostname, allowWildcards: true);
+                };
+            };
+        }
+
+        await pinnedConn.OpenAsync(ct);
+        return pinnedConn;
+    }
+
+    private static Task<int> EnforceReadOnlyTransactionAsync(
+        NpgsqlConnection dbConnection,
+        DbTransaction transaction,
+        int commandTimeoutSeconds,
+        CancellationToken ct)
+    {
+        var guardCommand = new CommandDefinition(
+            "SET TRANSACTION READ ONLY;",
+            transaction: transaction,
+            commandTimeout: commandTimeoutSeconds,
+            cancellationToken: ct);
+        return dbConnection.ExecuteAsync(guardCommand);
+    }
+
+    private static CommandDefinition BuildCommandDefinition(
+        string sqlQuery,
+        IDictionary<string, object>? parameters,
+        DbTransaction transaction,
+        int commandTimeoutSeconds,
+        CancellationToken ct)
+    {
+        var dapperParams = new DynamicParameters();
+        if (parameters != null)
+        {
+            foreach (var param in parameters)
+            {
+                dapperParams.Add(param.Key, param.Value);
+            }
+        }
+
+        return new CommandDefinition(
+            sqlQuery,
+            dapperParams,
+            transaction: transaction,
+            commandTimeout: commandTimeoutSeconds,
+            cancellationToken: ct);
     }
 }
 

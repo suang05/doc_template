@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using HandlebarsDotNet;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,14 +36,25 @@ public static class RenderingEngineServiceExtensions
         };
         services.Configure<GotenbergSettings>(opts => opts.Url = gotenbergSettings.Url);
 
+        int maxConcurrentRenders = Math.Max(1, configuration.GetValue("Gotenberg:MaxConcurrentRenders", 4));
+        int maxQueuedRenders = Math.Max(0, configuration.GetValue("Gotenberg:MaxQueuedRenders", 16));
+        services.AddSingleton(_ => new ConcurrencyLimiter(new ConcurrencyLimiterOptions
+        {
+            PermitLimit = maxConcurrentRenders,
+            QueueLimit = maxQueuedRenders,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        }));
+
         services.AddHttpClient<IPdfRenderer, GotenbergPdfRenderer>(client =>
         {
             if (gotenbergSettings.Url is not null)
                 client.BaseAddress = gotenbergSettings.Url;
         })
-        .AddResilienceHandler("gotenberg-resilience", builder =>
+        .AddResilienceHandler("gotenberg-resilience", (builder, context) =>
         {
+            var gotenbergConcurrencyLimiter = context.ServiceProvider.GetRequiredService<ConcurrencyLimiter>();
             builder.AddTimeout(TimeSpan.FromSeconds(60));
+            builder.AddRateLimiter(gotenbergConcurrencyLimiter);
 
             builder.AddRetry(new HttpRetryStrategyOptions
             {

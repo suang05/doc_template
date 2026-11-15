@@ -62,7 +62,7 @@ public sealed class DatasetsControllerTests
         var sut = CreateSut();
         var dtos = new List<DatasetResultDto>
         {
-            new(Guid.NewGuid(), "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, "1111")
+            new(Guid.NewGuid(), "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, 1L)
         };
         _listUseCase.ExecuteAsync(Arg.Any<ListDatasetsQuery>(), Arg.Any<CancellationToken>())
             .Returns(dtos);
@@ -82,7 +82,7 @@ public sealed class DatasetsControllerTests
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, "2222");
+        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", Guid.NewGuid(), "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, 1L);
         _getByIdUseCase.ExecuteAsync(Arg.Is<GetDatasetByIdQuery>(q => q.Id == id), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -102,7 +102,7 @@ public sealed class DatasetsControllerTests
         var sut = CreateSut();
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, "3333");
+        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, null, 1L);
         _createUseCase.ExecuteAsync(Arg.Any<CreateDatasetCommand>(), Arg.Any<CancellationToken>())
             .Returns(dto);
 
@@ -128,14 +128,14 @@ public sealed class DatasetsControllerTests
         var sut = CreateSut();
         var id = Guid.NewGuid();
         var connId = Guid.NewGuid();
-        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "4444");
-        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
+        var dto = new DatasetResultDto(id, "Invoices", "Monthly customer invoices", connId, "ERP DB", "SELECT * FROM invoices", 300, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 2L);
+        _updateUseCase.ExecuteAsync(Arg.Is<UpdateDatasetCommand>(c => c.Id == id && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(dto);
 
         var request = new UpdateDatasetRequest("Invoices", "Monthly customer invoices", connId, "SELECT * FROM invoices", 300);
 
         // Act
-        var result = await sut.Update(id, request, CancellationToken.None);
+        var result = await sut.Update(id, 1L, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
@@ -149,15 +149,15 @@ public sealed class DatasetsControllerTests
         // Arrange
         var sut = CreateSut();
         var id = Guid.NewGuid();
-        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>())
+        _deleteUseCase.ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         // Act
-        var result = await sut.Delete(id, CancellationToken.None);
+        var result = await sut.Delete(id, 1L, CancellationToken.None);
 
         // Assert
         result.Should().BeOfType<NoContentResult>();
-        await _deleteUseCase.Received(1).ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id), Arg.Any<CancellationToken>());
+        await _deleteUseCase.Received(1).ExecuteAsync(Arg.Is<DeleteDatasetCommand>(c => c.Id == id && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>());
     }
 }
 

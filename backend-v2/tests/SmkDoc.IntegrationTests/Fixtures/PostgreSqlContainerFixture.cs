@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using SmkDoc.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -11,15 +12,26 @@ namespace SmkDoc.IntegrationTests.Fixtures;
 /// </summary>
 public sealed class PostgreSqlContainerFixture : IAsyncLifetime
 {
+    public const string AppRoleUsername = "smk_app";
+    public const string AppRolePassword = "smk_app_dev_password_change_me";
+
     private PostgreSqlContainer? _container;
 
     public string ConnectionString { get; private set; } =
         Environment.GetEnvironmentVariable("SMK_TEST_PG_CONNECTION")
         ?? "Host=localhost;Port=5432;Database=smk_doc_integration_test;Username=postgres;Password=postgres";
 
+    public string AppRoleConnectionString => new NpgsqlConnectionStringBuilder(ConnectionString)
+    {
+        Username = AppRoleUsername,
+        Password = AppRolePassword
+    }.ConnectionString;
+
     public bool IsContainerBacked { get; private set; }
 
-    public bool IsAvailable => !string.IsNullOrWhiteSpace(ConnectionString);
+    public bool IsDatabaseReady { get; private set; }
+
+    public bool IsAvailable => IsDatabaseReady;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Design",
@@ -30,6 +42,7 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SMK_TEST_PG_CONNECTION")))
         {
             await MigrateDatabaseAsync(ConnectionString);
+            IsDatabaseReady = true;
             return;
         }
 
@@ -50,6 +63,7 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
             ConnectionString = _container.GetConnectionString();
             IsContainerBacked = true;
             await MigrateDatabaseAsync(ConnectionString);
+            IsDatabaseReady = true;
         }
         catch when (!requireContainers)
         {

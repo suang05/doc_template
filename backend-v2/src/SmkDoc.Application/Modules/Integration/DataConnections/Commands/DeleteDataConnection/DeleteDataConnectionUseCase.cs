@@ -11,6 +11,11 @@ public sealed class DeleteDataConnectionUseCase(
         var entity = await repository.GetByIdAsync(new DataConnectionId(command.Id), ct)
             ?? throw new NotFoundException("DataConnection", command.Id);
 
+        if (entity.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         repository.Remove(entity);
         await unitOfWork.CommitAsync(ct);
     }

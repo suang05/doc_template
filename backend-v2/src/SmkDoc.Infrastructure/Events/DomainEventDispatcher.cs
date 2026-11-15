@@ -36,7 +36,33 @@ public sealed partial class DomainEventDispatcher(
                 return (IDomainEventHandlerWrapper)Activator.CreateInstance(wrapperType)!;
             });
 
-            await wrapper.HandleAsync(domainEvent, serviceProvider, logger, ct);
+            await wrapper.HandleAsync(domainEvent, serviceProvider, logger, isolateFaults: true, ct);
+        }
+    }
+
+    /// <summary>
+    /// Strict dispatch used by transactional Outbox workers so transient failures propagate and trigger
+    /// exponential backoff / dead-letter handling instead of silently marking messages processed.
+    /// </summary>
+    public async Task DispatchOrThrowAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken ct)
+    {
+        foreach (var domainEvent in domainEvents)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var eventType = domainEvent.GetType();
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                LogDispatchingEvent(logger, eventType.Name);
+            }
+
+            var wrapper = HandlerWrappers.GetOrAdd(eventType, static type =>
+            {
+                var wrapperType = typeof(DomainEventHandlerWrapperImpl<>).MakeGenericType(type);
+                return (IDomainEventHandlerWrapper)Activator.CreateInstance(wrapperType)!;
+            });
+
+            await wrapper.HandleAsync(domainEvent, serviceProvider, logger, isolateFaults: false, ct);
         }
     }
 
@@ -56,6 +82,7 @@ public sealed partial class DomainEventDispatcher(
             IDomainEvent domainEvent,
             IServiceProvider serviceProvider,
             ILogger logger,
+            bool isolateFaults,
             CancellationToken ct);
     }
 
@@ -66,10 +93,12 @@ public sealed partial class DomainEventDispatcher(
             IDomainEvent domainEvent,
             IServiceProvider serviceProvider,
             ILogger logger,
+            bool isolateFaults,
             CancellationToken ct)
         {
             var typedEvent = (TEvent)domainEvent;
             var handlers = serviceProvider.GetServices<IDomainEventHandler<TEvent>>();
+            List<Exception>? failures = null;
 
             foreach (var handler in handlers)
             {
@@ -80,7 +109,22 @@ public sealed partial class DomainEventDispatcher(
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
                     LogHandlerFailed(logger, exception, handler.GetType().Name, typeof(TEvent).Name);
+                    if (!isolateFaults)
+                    {
+                        failures ??= [];
+                        failures.Add(exception);
+                    }
                 }
+            }
+
+            if (failures is { Count: 1 })
+            {
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            }
+
+            if (failures is { Count: > 1 })
+            {
+                throw new AggregateException("One or more domain event handlers failed during outbox relay.", failures);
             }
         }
     }

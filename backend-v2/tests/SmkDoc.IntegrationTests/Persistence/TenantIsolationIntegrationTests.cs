@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SmkDoc.Domain.Entities;
 using SmkDoc.Domain.Exceptions;
 using SmkDoc.Domain.Interfaces;
+using SmkDoc.Domain.TenantManagement;
 using SmkDoc.Domain.ValueObjects;
 using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Persistence;
@@ -76,10 +77,14 @@ public sealed class TenantIsolationIntegrationTests
         }
     }
 
-    private static ICurrentProjectContext CreateProjectContext(ProjectId projectId, bool isResolved = true)
+    private static ICurrentProjectContext CreateProjectContext(
+        ProjectId projectId,
+        bool isResolved = true,
+        bool isControlPlane = false)
     {
         var context = Substitute.For<ICurrentProjectContext>();
         context.IsResolved.Returns(isResolved);
+        context.IsControlPlane.Returns(isControlPlane);
         if (isResolved)
         {
             context.GetRequiredProjectId().Returns(projectId);
@@ -172,12 +177,12 @@ public sealed class TenantIsolationIntegrationTests
     }
 
     [Fact]
-    public void Interceptor_WhenTenantUnresolved_AddingEntity_DoesNotRejectCrossTenant()
+    public void Interceptor_WhenTenantUnresolvedAndNotControlPlane_AddingEntity_ThrowsTenantContextNotResolvedException()
     {
         // Arrange
         var foreignTenantId = ProjectId.New();
 
-        var projectContext = CreateProjectContext(ProjectId.Empty, isResolved: false);
+        var projectContext = CreateProjectContext(ProjectId.Empty, isResolved: false, isControlPlane: false);
         var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
         using var dbContext = new AppDbContext(CreateOptions(interceptor), projectContext);
 
@@ -194,7 +199,34 @@ public sealed class TenantIsolationIntegrationTests
         var act = () => interceptor.ApplyTenantSecurity(dbContext);
 
         // Assert
-        act.Should().NotThrow();
+        act.Should().Throw<TenantContextNotResolvedException>();
+    }
+
+    [Fact]
+    public void Interceptor_WhenControlPlaneActive_PermitsProjectQuotaWithProjectId_AndRejectsDataPlaneTemplate()
+    {
+        // Arrange
+        var targetTenantId = ProjectId.New();
+        var projectContext = CreateProjectContext(ProjectId.Empty, isResolved: false, isControlPlane: true);
+        var interceptor = new TenantSecuritySaveChangesInterceptor(projectContext);
+        using var quotaDb = new AppDbContext(CreateOptions(interceptor), projectContext);
+
+        var quota = ProjectQuota.CreateDefault(targetTenantId, FixedNow);
+        quotaDb.ProjectQuotas.Add(quota);
+
+        var allowControlPlane = () => interceptor.ApplyTenantSecurity(quotaDb);
+        allowControlPlane.Should().NotThrow();
+
+        using var templateDb = new AppDbContext(CreateOptions(interceptor), projectContext);
+        templateDb.Templates.Add(Template.Create(
+            targetTenantId,
+            TemplateName.Create("Blocked Control Plane Data Write"),
+            TemplateSlug.Create("blocked-control-plane-data-write"),
+            null,
+            FixedNow));
+
+        var rejectDataPlane = () => interceptor.ApplyTenantSecurity(templateDb);
+        rejectDataPlane.Should().Throw<CrossTenantAccessDeniedException>();
     }
 
     [Fact]
@@ -277,7 +309,7 @@ public sealed class TenantIsolationIntegrationTests
     }
 
     [Fact]
-    public void Interceptor_WhenTenantResolved_AttemptingTenantReassignment_ThrowsInvalidOperationException()
+    public void Interceptor_WhenTenantResolved_AttemptingTenantReassignment_ThrowsForbiddenException()
     {
         // Arrange
         var activeTenantId = ProjectId.New();
@@ -302,8 +334,8 @@ public sealed class TenantIsolationIntegrationTests
         var act = () => interceptor.ApplyTenantSecurity(dbContext);
 
         // Assert
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Tenant reassignment is strictly prohibited*");
+        act.Should().Throw<ForbiddenException>()
+            .Which.ErrorCode.Should().Be(ErrorCodes.TenantReassignmentProhibited);
     }
 }
 

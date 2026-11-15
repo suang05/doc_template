@@ -1,4 +1,3 @@
-using System.Globalization;
 using SmkDoc.Domain.Interfaces;
 
 namespace SmkDoc.Domain.Common;
@@ -11,6 +10,8 @@ public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, I
     where TId : struct, IComparable<TId>, IEquatable<TId>
 {
     private readonly List<IDomainEvent> _domainEvents = [];
+
+    public long Version { get; protected set; } = 1;
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
@@ -25,11 +26,13 @@ public abstract class AggregateRoot<TId> : BaseEntity<TId>, IHaveDomainEvents, I
     protected AggregateRoot(TId id, DateTimeOffset createdAt)
         : base(id, createdAt)
     {
+        Version = 1;
     }
 
-    public virtual string GetConcurrencyToken() =>
-        (UpdatedAt ?? CreatedAt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
-
-    public virtual string? GetAlternateConcurrencyToken() => null;
+    protected override void SetUpdated(DateTimeOffset now)
+    {
+        base.SetUpdated(now);
+        Version++;
+    }
 }
 

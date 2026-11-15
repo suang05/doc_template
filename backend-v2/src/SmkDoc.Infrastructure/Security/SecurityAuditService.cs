@@ -32,6 +32,21 @@ public sealed partial class SecurityAuditService(ILogger<SecurityAuditService> l
     public void LogUserDeactivated(Guid userId) =>
         WriteUserDeactivated(logger, userId);
 
+    public void LogBreakGlassAccessGranted(Guid grantId, Guid projectId, Guid superAdminUserId, DateTimeOffset expiresAt) =>
+        WriteBreakGlassAccessGranted(logger, grantId, projectId, superAdminUserId, expiresAt);
+
+    public void LogBreakGlassAccessUsed(Guid userId, Guid projectId, string path) =>
+        WriteBreakGlassAccessUsed(logger, userId, projectId, path);
+
+    public void LogBreakGlassAccessRevoked(Guid grantId, Guid projectId) =>
+        WriteBreakGlassAccessRevoked(logger, grantId, projectId);
+
+    public void LogLegacyApiKeyUsed(Guid apiKeyId, Guid projectId) =>
+        WriteLegacyApiKeyUsed(logger, apiKeyId, projectId);
+
+    public void LogEgressDenied(Guid? projectId, string schemeOrProvider, string reasonCategory) =>
+        WriteEgressDenied(logger, projectId, schemeOrProvider, reasonCategory);
+
     [LoggerMessage(
         Level = LogLevel.Information,
         Message = "Security Audit: User {UserId} ({Email}) authenticated successfully with active project {ProjectId}")]
@@ -71,4 +86,29 @@ public sealed partial class SecurityAuditService(ILogger<SecurityAuditService> l
         Level = LogLevel.Warning,
         Message = "Security Audit: User account {UserId} deactivated and active sessions revoked")]
     private static partial void WriteUserDeactivated(ILogger logger, Guid userId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Security Audit: Break-glass grant {GrantId} issued for SuperAdmin {SuperAdminUserId} on project {ProjectId} expiring {ExpiresAt}")]
+    private static partial void WriteBreakGlassAccessGranted(ILogger logger, Guid grantId, Guid projectId, Guid superAdminUserId, DateTimeOffset expiresAt);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Security Audit: SuperAdmin {UserId} accessed data-plane route {Path} on project {ProjectId} via active break-glass grant")]
+    private static partial void WriteBreakGlassAccessUsed(ILogger logger, Guid userId, Guid projectId, string path);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Security Audit: Break-glass grant {GrantId} revoked for project {ProjectId}")]
+    private static partial void WriteBreakGlassAccessRevoked(ILogger logger, Guid grantId, Guid projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Security Audit: Legacy SHA-256 API key {ApiKeyId} authenticated for project {ProjectId}; rotate to smk_live_ structured credentials")]
+    private static partial void WriteLegacyApiKeyUsed(ILogger logger, Guid apiKeyId, Guid projectId);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Security Alert: Outbound egress blocked for project {ProjectId} via {SchemeOrProvider} ({ReasonCategory})")]
+    private static partial void WriteEgressDenied(ILogger logger, Guid? projectId, string schemeOrProvider, string reasonCategory);
 }

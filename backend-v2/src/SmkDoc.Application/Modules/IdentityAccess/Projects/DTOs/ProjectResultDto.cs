@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmkDoc.Application.Modules.IdentityAccess.Projects.DTOs;
 
 /// <summary>
@@ -11,8 +13,12 @@ public sealed record ProjectResultDto(
     DateTimeOffset CreatedAt,
     string? ReadApiKey = null,
     string? WriteApiKey = null,
-    string? ConcurrencyToken = null
-) : IHasConcurrencyToken;
+    [property: JsonIgnore] long Version = 1
+) : IHasVersion, IHasResourceId
+{
+    [JsonIgnore]
+    public Guid ResourceId => Id;
+}
 
 /// <summary>
 /// Paged query result for projects.

@@ -29,13 +29,13 @@ public sealed class UserManagementControllerTests
             "Developer",
             false,
             DateTimeOffset.UtcNow,
-            "12345");
+            2L);
 
-        _setStatusUseCase.ExecuteAsync(Arg.Is<SetUserStatusCommand>(c => c.UserId == targetUserId && !c.IsActive), Arg.Any<CancellationToken>())
+        _setStatusUseCase.ExecuteAsync(Arg.Is<SetUserStatusCommand>(c => c.UserId == targetUserId && !c.IsActive && c.ExpectedVersion == 1L), Arg.Any<CancellationToken>())
             .Returns(updatedUser);
 
         // Act
-        var result = await CreateSut().SetStatus(targetUserId, request, CancellationToken.None);
+        var result = await CreateSut().SetStatus(targetUserId, 1L, request, CancellationToken.None);
 
         // Assert
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;

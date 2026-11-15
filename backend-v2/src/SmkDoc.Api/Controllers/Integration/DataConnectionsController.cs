@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SmkDoc.Api.Binders;
 using SmkDoc.Api.Common.Responses;
 using SmkDoc.Api.Constants;
 using SmkDoc.Api.Contracts.Integration.DataConnections;
@@ -69,12 +70,14 @@ public sealed class DataConnectionsController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Update(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         [FromBody] UpdateDataConnectionRequest request,
         CancellationToken ct)
     {
-        var command = new UpdateDataConnectionCommand(id, request.Name, request.Provider, request.ConnectionString);
+        var command = new UpdateDataConnectionCommand(id, request.Name, request.Provider, request.ConnectionString, expectedVersion);
         var result = await updateUseCase.ExecuteAsync(command, ct);
         return Ok(new ApiResponse<DataConnectionResultDto>(result));
     }
@@ -84,11 +87,13 @@ public sealed class DataConnectionsController(
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status412PreconditionFailed)]
+    [ProducesResponseType(StatusCodes.Status428PreconditionRequired)]
     public async Task<IActionResult> Delete(
         [FromRoute] Guid id,
+        [FromIfMatch] long expectedVersion,
         CancellationToken ct)
     {
-        var command = new DeleteDataConnectionCommand(id);
+        var command = new DeleteDataConnectionCommand(id, expectedVersion);
         await deleteUseCase.ExecuteAsync(command, ct);
         return NoContent();
     }

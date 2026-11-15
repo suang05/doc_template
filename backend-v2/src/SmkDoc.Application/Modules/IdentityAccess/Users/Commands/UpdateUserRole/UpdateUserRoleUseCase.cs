@@ -8,7 +8,8 @@ namespace SmkDoc.Application.Modules.IdentityAccess.Users.Commands.UpdateUserRol
 public sealed class UpdateUserRoleUseCase(
     IUserProjectRoleRepository roleRepo,
     IUserRepository userRepo,
-    IUnitOfWork uow) : IUseCase<UpdateUserRoleCommand, UserResultDto>
+    IUnitOfWork uow,
+    TimeProvider timeProvider) : IUseCase<UpdateUserRoleCommand, UserResultDto>
 {
     public async Task<UserResultDto> ExecuteAsync(UpdateUserRoleCommand command, CancellationToken ct)
     {
@@ -16,10 +17,15 @@ public sealed class UpdateUserRoleUseCase(
         var roleEntry = await roleRepo.GetForCurrentProjectAsync(uId, ct)
             ?? throw new NotFoundException("User is not a member of this project.");
 
+        if (roleEntry.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         var targetRole = RoleType.FromDisplayName<RoleType>(command.Role);
         await EnsureNotDemotingLastAdminAsync(roleEntry, targetRole, ct);
 
-        roleEntry.UpdateRole(targetRole);
+        roleEntry.UpdateRole(targetRole, timeProvider.GetUtcNow());
         roleRepo.Update(roleEntry);
         await uow.CommitAsync(ct);
 
@@ -52,5 +58,5 @@ public sealed class UpdateUserRoleUseCase(
             roleEntry.Role.Name,
             user.IsActive,
             user.CreatedAt,
-            roleEntry.GetConcurrencyToken());
+            roleEntry.Version);
 }

@@ -1,52 +1,73 @@
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using SmkDoc.Application.Common.Exceptions;
 using SmkDoc.Application.Common.Interfaces;
 using SmkDoc.Application.Modules.IdentityAccess.Security.DTOs;
 using SmkDoc.Domain.Entities;
-using SmkDoc.Domain.Enums;
 using SmkDoc.Domain.ValueObjects.Ids;
 
 namespace SmkDoc.Infrastructure.Persistence.Queries;
 
-public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorkspaceQueryService
+public sealed class UserWorkspaceQueryService(
+    AppDbContext context,
+    TimeProvider timeProvider) : IUserWorkspaceQueryService
 {
     public async Task<IReadOnlyList<AccessibleProjectResultDto>> GetAccessibleProjectsAsync(
         Guid userId,
         bool isSuperAdmin,
         CancellationToken ct)
     {
-        if (isSuperAdmin)
-        {
-            var projects = await context.Projects
-                .AsNoTracking()
-                .Where(p => p.IsActive)
-                .OrderBy(p => p.Name)
-                .ToListAsync(ct);
-
-            return projects
-                .Select(p => new AccessibleProjectResultDto(p.Id.Value, p.Name.Value, p.Slug.Value, "Admin"))
-                .ToList();
-        }
-
+        // Zero Standing Access (ZSA): SuperAdmin status never grants implicit project membership.
+        _ = isSuperAdmin;
         var typedUserId = new UserId(userId);
-        var results = await (
+        var now = timeProvider.GetUtcNow();
+
+        var memberProjects = await (
             from r in context.UserProjectRoles.AsNoTracking()
             where r.UserId == typedUserId
             join p in context.Projects.AsNoTracking() on r.ProjectId equals p.Id
             where p.IsActive
-            orderby p.Name
             select new
             {
-                p.Id,
-                p.Name,
-                p.Slug,
+                Id = p.Id.Value,
+                Name = p.Name.Value,
+                Slug = p.Slug.Value,
                 Role = r.Role.Name
             }
         ).ToListAsync(ct);
 
-        return results
-            .Select(x => new AccessibleProjectResultDto(x.Id.Value, x.Name.Value, x.Slug.Value, x.Role))
+        var breakGlassProjects = await (
+            from g in context.BreakGlassGrants.AsNoTracking()
+            where g.SuperAdminUserId == typedUserId &&
+                  g.RevokedAt == null &&
+                  g.GrantedAt <= now &&
+                  g.ExpiresAt > now
+            join p in context.Projects.AsNoTracking() on g.TargetProjectId equals p.Id
+            where p.IsActive
+            select new
+            {
+                Id = p.Id.Value,
+                Name = p.Name.Value,
+                Slug = p.Slug.Value
+            }
+        ).ToListAsync(ct);
+
+        var byProjectId = new Dictionary<Guid, AccessibleProjectResultDto>();
+        foreach (var item in memberProjects)
+        {
+            byProjectId[item.Id] = new AccessibleProjectResultDto(item.Id, item.Name, item.Slug, item.Role);
+        }
+
+        foreach (var grant in breakGlassProjects.Where(grant => !byProjectId.ContainsKey(grant.Id)))
+        {
+            byProjectId[grant.Id] = new AccessibleProjectResultDto(
+                grant.Id,
+                grant.Name,
+                grant.Slug,
+                "BreakGlassAdmin");
+        }
+
+        return byProjectId.Values
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
@@ -55,6 +76,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         CancellationToken ct)
     {
         var typedProjectId = new ProjectId(projectId);
+        var now = timeProvider.GetUtcNow();
         var keys = await context.ApiKeys
             .AsNoTracking()
             .Where(k => k.ProjectId == typedProjectId && k.IsActive)
@@ -62,6 +84,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
             .ToListAsync(ct);
 
         return keys
+            .Where(k => !k.IsExpiredAt(now))
             .Select(k => new ApiKeyResultDto(
                 k.Id.Value,
                 k.Name.Value,
@@ -70,7 +93,8 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
                 k.LastUsedAt,
                 k.CreatedAt,
                 k.Scope.Name,
-                ConcurrencyToken: (k.UpdatedAt ?? k.CreatedAt).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)))
+                k.GetMaskedKey(),
+                k.Version))
             .ToList();
     }
 
@@ -80,12 +104,11 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         bool throwOnUnauthorized,
         CancellationToken ct)
     {
-        var isSuperAdmin = user.SystemRole == SystemRole.SuperAdmin;
-        var accessibleProjects = await GetAccessibleProjectsAsync(user.Id.Value, isSuperAdmin, ct);
+        var accessibleProjects = await GetAccessibleProjectsAsync(user.Id.Value, isSuperAdmin: false, ct);
 
         var defaultProject = accessibleProjects.Count > 0 ? accessibleProjects[0] : null;
         var defaultProjectId = defaultProject?.Id;
-        string fallbackRole = isSuperAdmin ? "Admin" : "Viewer";
+        const string fallbackRole = "Viewer";
         string defaultRole = defaultProject?.Role ?? fallbackRole;
 
         if (!requestedProjectId.HasValue || requestedProjectId.Value == Guid.Empty)
@@ -98,7 +121,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
         }
 
         var target = accessibleProjects.FirstOrDefault(p => p.Id == requestedProjectId.Value);
-        if (target == null && !isSuperAdmin)
+        if (target == null)
         {
             if (throwOnUnauthorized)
             {
@@ -114,7 +137,7 @@ public sealed class UserWorkspaceQueryService(AppDbContext context) : IUserWorks
 
         return new UserWorkspaceContextResultDto(
             requestedProjectId.Value,
-            target?.Role ?? fallbackRole,
+            target.Role,
             defaultProjectId,
             accessibleProjects);
     }

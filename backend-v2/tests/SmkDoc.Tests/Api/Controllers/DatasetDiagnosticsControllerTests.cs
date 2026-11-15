@@ -43,7 +43,7 @@ public sealed class DatasetDiagnosticsControllerTests
         var method = type.GetMethod(nameof(DatasetDiagnosticsController.DryRun));
         var rateLimitAttr = method!.GetCustomAttribute<EnableRateLimitingAttribute>();
         rateLimitAttr.Should().NotBeNull();
-        rateLimitAttr!.PolicyName.Should().Be("test-conn");
+        rateLimitAttr!.PolicyName.Should().Be("connectivity-check");
     }
 
     [Fact]

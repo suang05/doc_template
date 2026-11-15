@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SmkDoc.Application.Modules.Authoring.Templates.DTOs;
 
 /// <summary>
@@ -14,8 +16,12 @@ public sealed record TemplateResultDto(
     string? FileFormat,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    string? ConcurrencyToken = null
-) : IHasConcurrencyToken;
+    [property: JsonIgnore] long Version = 1
+) : IHasVersion, IHasResourceId
+{
+    [JsonIgnore]
+    public Guid ResourceId => Id;
+}
 
 /// <summary>
 /// Paged query result for templates.

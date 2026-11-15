@@ -19,6 +19,11 @@ public sealed class SaveTemplateMappingsUseCase(
             ?? await templateRepo.GetByIdAsync(templateId, ct)
             ?? throw new NotFoundException($"Template '{command.TemplateId}' not found.");
 
+        if (template.Version != command.ExpectedVersion)
+        {
+            throw PreconditionFailedException.VersionMismatch();
+        }
+
         var now = timeProvider.GetUtcNow();
         var mappings = command.Items.Select(item =>
         {
