@@ -17,7 +17,8 @@ import type {
 export interface ListProjectsParams {
   search?: string;
   page?: number;
-  pageSize?: number;
+  limit?: number;
+  includeTotal?: boolean;
 }
 
 export interface RegisterPlatformFontPayload {
@@ -31,7 +32,8 @@ function buildProjectsQuery(params?: ListProjectsParams): string {
   const qs = new URLSearchParams();
   if (params?.search?.trim()) qs.set('search', params.search.trim());
   if (params?.page) qs.set('page', String(params.page));
-  if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.includeTotal !== undefined) qs.set('includeTotal', String(params.includeTotal));
   const encoded = qs.toString();
   return encoded ? `?${encoded}` : '';
 }

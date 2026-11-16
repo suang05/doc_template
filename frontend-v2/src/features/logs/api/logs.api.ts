@@ -11,10 +11,16 @@ export const logsApi = {
   /**
    * List generation logs with pagination and optional caller app filter (SSoT: GET /api/v1/logs)
    */
-  async listLogs(page = 1, limit = 50, app?: string): Promise<PagedEnvelope<GenerationLogDto>> {
+  async listLogs(
+    page = 1,
+    limit = 50,
+    app?: string,
+    includeTotal = true,
+  ): Promise<PagedEnvelope<GenerationLogDto>> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
+      includeTotal: String(includeTotal),
     });
     if (app && app.trim()) {
       params.set('app', app.trim());

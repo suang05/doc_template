@@ -29,7 +29,7 @@ export const WorkspaceSwitcher: React.FC = () => {
     refetch,
   } = useQuery({
     queryKey: PORTAL_PROJECTS_QUERY_KEY,
-    queryFn: () => projectsApi.listAccessible({ pageSize: 100 }),
+    queryFn: () => projectsApi.listAccessible({ limit: 100, includeTotal: false }),
     staleTime: 30_000,
   });
 

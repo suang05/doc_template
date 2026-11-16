@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ShieldAlert, Plus, RefreshCw, Ban } from 'lucide-react';
 import {
   Badge,
@@ -29,6 +29,7 @@ interface BreakGlassTabSectionProps {
   filterProjectId: string;
   onFilterProjectChange: (projectId: string) => void;
   loading: boolean;
+  error?: string | null;
   revokingGrantId: string | null;
   onLoadGrants: (projectId?: string) => Promise<void>;
   onIssueGrant: (
@@ -46,6 +47,7 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
   filterProjectId,
   onFilterProjectChange,
   loading,
+  error: queryError,
   revokingGrantId,
   onLoadGrants,
   onIssueGrant,
@@ -60,20 +62,12 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
   const [reason, setReason] = useState('');
   const [grantErrors, setGrantErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmRevokeGrant, setConfirmRevokeGrant] = useState<BreakGlassGrantDto | null>(null);
   const {
     getKey: getGrantIdempotencyKey,
     rotateKey: rotateGrantIdempotencyKey,
     resetKey: resetGrantIdempotencyKey,
   } = useIdempotencyKey();
-
-  useEffect(() => {
-    setLoadError(null);
-    onLoadGrants(filterProjectId).catch((err) => {
-      setLoadError(extractErrorMessage(err, 'โหลดรายการ Break-Glass Grants ไม่สำเร็จ'));
-    });
-  }, [filterProjectId, onLoadGrants]);
 
   const projectNameById = new Map(tenants.map((t) => [t.id.toLowerCase(), `${t.name} (${t.slug})`]));
 
@@ -250,9 +244,9 @@ export const BreakGlassTabSection: React.FC<BreakGlassTabSectionProps> = ({
         </div>
       </div>
 
-      {loadError && (
+      {queryError && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-sm">
-          {loadError}
+          {queryError}
         </div>
       )}
 

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using SmkDoc.Application.Common;
-using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Common.Streams;
 using SmkDoc.Application.Modules.DataBinding.Services;
 using SmkDoc.Application.Modules.Rendering.Documents.Commands.GenerateDocument;
 using SmkDoc.Application.Modules.Rendering.Documents.DTOs;

@@ -90,20 +90,49 @@ export function extractErrorMessage(
   return fallback;
 }
 
+/**
+ * Rewrites backend-relative `/api/v1/*` paths cleanly to Next.js BFF `/api/proxy/v1/*`
+ * streaming proxy endpoints while leaving already-proxied URLs, `blob:`, `data:`,
+ * `/api/auth/*`, and `/api/health` untouched.
+ */
+export function toBffProxyUrl(urlOrPath: string): string {
+  const trimmed = urlOrPath.trim();
+  if (!trimmed) return '#';
+
+  if (
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('/api/proxy/') ||
+    trimmed.startsWith('/api/auth/') ||
+    trimmed === '/api/health'
+  ) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/api/v1/')) {
+    return `/api/proxy${trimmed.slice(4)}`;
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.pathname.startsWith('/api/v1/')) {
+        return `/api/proxy${parsed.pathname.slice(4)}${parsed.search}${parsed.hash}`;
+      }
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return trimmed;
+}
+
 function resolveRequestUrl(endpoint: string): string {
   if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
     return endpoint;
   }
-  if (
-    endpoint.startsWith('/api/') &&
-    !endpoint.startsWith('/api/proxy/') &&
-    !endpoint.startsWith('/api/auth/') &&
-    endpoint !== '/api/health'
-  ) {
-    return `/api/proxy${endpoint.slice(4)}`;
-  }
   if (endpoint.startsWith('/api/')) {
-    return endpoint;
+    return toBffProxyUrl(endpoint);
   }
   return `${API_BASE_URL}${endpoint}`;
 }

@@ -230,7 +230,8 @@ export const SettingsView: React.FC = () => {
 
             <p className="text-xs text-textSecondary">
               ระบบใช้ HttpOnly Session Token แทนการจัดเก็บ API Key ในบราวเซอร์ หากต้องการสร้างกุญแจสำหรับ
-              ระบบภายนอก (Machine-to-Machine ผ่าน <code className="font-mono">X-API-Key</code>) สามารถจัดการได้ที่{' '}
+              ระบบภายนอก (Machine-to-Machine ผ่าน{' '}
+              <code className="font-mono">Authorization: ApiKey smk_live_...</code>) สามารถจัดการได้ที่{' '}
               <Link href="/api-keys" className="text-primary font-semibold hover:underline">
                 หน้าจัดการ API Keys
               </Link>

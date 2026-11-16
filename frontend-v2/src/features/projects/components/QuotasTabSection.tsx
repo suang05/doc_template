@@ -16,6 +16,7 @@ interface QuotasTabSectionProps {
   quota: ProjectQuotaDto | null;
   quotaEtag: string | null;
   loading: boolean;
+  error?: string | null;
   saving: boolean;
   onLoadQuota: (projectId: string) => Promise<void>;
   onSaveQuota: (
@@ -34,6 +35,7 @@ export const QuotasTabSection: React.FC<QuotasTabSectionProps> = ({
   quota,
   quotaEtag,
   loading,
+  error: queryError,
   saving,
   onLoadQuota,
   onSaveQuota,
@@ -47,15 +49,6 @@ export const QuotasTabSection: React.FC<QuotasTabSectionProps> = ({
   const [maxActiveApiKeys, setMaxActiveApiKeys] = useState('2');
   const [isActive, setIsActive] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!selectedProjectId) return;
-    setLoadError(null);
-    onLoadQuota(selectedProjectId).catch((err) => {
-      setLoadError(extractErrorMessage(err, 'ไม่สามารถโหลดข้อมูลโควตาของโปรเจกต์ได้'));
-    });
-  }, [onLoadQuota, selectedProjectId]);
 
   useEffect(() => {
     if (!quota) return;
@@ -134,9 +127,9 @@ export const QuotasTabSection: React.FC<QuotasTabSectionProps> = ({
         </Button>
       </div>
 
-      {loadError && (
+      {queryError && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-sm">
-          {loadError}
+          {queryError}
         </div>
       )}
 

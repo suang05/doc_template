@@ -1,96 +1,160 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useTemplates } from '@/features/templates/hooks/useTemplates';
+import { useState, useCallback, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTemplates, TEMPLATES_QUERY_KEY } from '@/features/templates/hooks/useTemplates';
 import { useAutoSelectFirst } from '@/hooks/useAutoSelectFirst';
 import { templatesApi } from '@/features/templates/api/templates.api';
 import { extractErrorMessage } from '@/lib/api/client';
+import { withTimeoutSignal } from '@/lib/api/withTimeoutSignal';
 import type { TemplateVersionDto } from '@/lib/api/types';
 import { useConflictRecovery } from '@/hooks/useConflictRecovery';
 
+interface VersionHistoryBundle {
+  versions: TemplateVersionDto[];
+  etag: string | null;
+  html: string;
+}
+
 export function useVersionHistory(initialTemplateId?: string) {
+  const queryClient = useQueryClient();
   const { templates, loading: templatesLoading } = useTemplates();
-  const [selectedTemplateId, setSelectedTemplateId] = useAutoSelectFirst(
+  const [selectedTemplateId, setSelectedTemplateIdRaw] = useAutoSelectFirst(
     templates,
     (t) => t.id,
-    initialTemplateId
+    initialTemplateId,
   );
 
-  const [versions, setVersions] = useState<TemplateVersionDto[]>([]);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-  const [currentHtml, setCurrentHtml] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [rollingBack, setRollingBack] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [pickedVersion, setPickedVersion] = useState<{
+    templateId: string;
+    version: number;
+  } | null>(null);
+  const [actionError, setActionError] = useState<{
+    templateId: string;
+    message: string;
+  } | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [etag, setEtag] = useState<string | null>(null);
   const { conflict, captureConflict, clearConflict } = useConflictRecovery();
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || null;
 
-  const fetchVersions = useCallback(async (templateId: string) => {
-    if (!templateId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [verList, templateRes, studioData] = await Promise.all([
-        templatesApi.listTemplateVersions(templateId),
-        templatesApi.getTemplateWithETag(templateId).catch(() => null),
-        templatesApi.getTemplateStudio(templateId).catch(() => null),
-      ]);
-      setEtag(templateRes?.etag ?? null);
+  const setSelectedTemplateId = useCallback(
+    (id: string) => {
+      setActionError(null);
       clearConflict();
+      setSelectedTemplateIdRaw(id);
+    },
+    [clearConflict, setSelectedTemplateIdRaw],
+  );
 
-      const sorted = [...verList].sort((a, b) => b.version - a.version);
-      setVersions(sorted);
-      if (sorted.length > 0) {
-        setSelectedVersion(sorted[0].version);
-      } else {
-        setSelectedVersion(null);
-      }
+  const versionQuery = useQuery<VersionHistoryBundle, Error>({
+    queryKey: ['template-versions', selectedTemplateId],
+    enabled: Boolean(selectedTemplateId),
+    queryFn: ({ signal }) =>
+      withTimeoutSignal(async (timedSignal) => {
+        const [verList, templateRes, studioData] = await Promise.all([
+          templatesApi.listTemplateVersions(selectedTemplateId, { signal: timedSignal }),
+          templatesApi.getTemplateWithETag(selectedTemplateId, { signal: timedSignal }).catch(() => null),
+          templatesApi.getTemplateStudio(selectedTemplateId, { signal: timedSignal }).catch(() => null),
+        ]);
 
-      if (studioData?.html) {
-        setCurrentHtml(studioData.html);
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดประวัติเวอร์ชันได้');
-    } finally {
-      setLoading(false);
+        const sorted = [...verList].sort((a, b) => b.version - a.version);
+        return {
+          versions: sorted,
+          etag: templateRes?.etag ?? null,
+          html: studioData?.html ?? '',
+        };
+      }, signal),
+  });
+
+  const versions = useMemo(
+    () => (selectedTemplateId ? versionQuery.data?.versions ?? [] : []),
+    [selectedTemplateId, versionQuery.data?.versions],
+  );
+  const currentHtml = selectedTemplateId ? versionQuery.data?.html ?? '' : '';
+  const etag = selectedTemplateId ? versionQuery.data?.etag ?? null : null;
+
+  const selectedVersion = useMemo(() => {
+    if (
+      pickedVersion &&
+      pickedVersion.templateId === selectedTemplateId &&
+      versions.some((v) => v.version === pickedVersion.version)
+    ) {
+      return pickedVersion.version;
     }
-  }, [clearConflict]);
+    return versions.length > 0 ? versions[0].version : null;
+  }, [pickedVersion, selectedTemplateId, versions]);
 
-  useEffect(() => {
-    if (selectedTemplateId) {
-      fetchVersions(selectedTemplateId);
-    }
-  }, [selectedTemplateId, fetchVersions]);
+  const setSelectedVersion = useCallback(
+    (version: number | null) => {
+      if (version === null || !selectedTemplateId) {
+        setPickedVersion(null);
+        return;
+      }
+      setPickedVersion({ templateId: selectedTemplateId, version });
+    },
+    [selectedTemplateId],
+  );
+
+  const rollbackMutation = useMutation({
+    mutationFn: async ({
+      templateId,
+      version,
+      ifMatch,
+    }: {
+      templateId: string;
+      version: number;
+      ifMatch: string | null;
+    }) => {
+      return templatesApi.rollbackTemplateVersionWithETag(templateId, version, ifMatch);
+    },
+    onSuccess: async (res, variables) => {
+      queryClient.setQueryData<VersionHistoryBundle>(
+        ['template-versions', variables.templateId],
+        (prev) => (prev ? { ...prev, etag: res.etag ?? prev.etag } : prev),
+      );
+      setPickedVersion(null);
+      setSuccessMessage(`ย้อนเวอร์ชันกลับเป็น v${variables.version} สำเร็จ`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['template-versions', variables.templateId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['template-studio', variables.templateId],
+        }),
+        queryClient.invalidateQueries({ queryKey: TEMPLATES_QUERY_KEY }),
+      ]);
+    },
+  });
 
   const handleRollback = async (version: number) => {
     if (!selectedTemplateId) return;
 
-    setRollingBack(true);
-    setError(null);
+    setActionError(null);
     clearConflict();
     try {
-      const res = await templatesApi.rollbackTemplateVersionWithETag(
-        selectedTemplateId,
+      await rollbackMutation.mutateAsync({
+        templateId: selectedTemplateId,
         version,
-        etag,
-      );
-      if (res.etag) {
-        setEtag(res.etag);
-      }
-      setSuccessMessage(`ย้อนเวอร์ชันกลับเป็น v${version} สำเร็จ`);
-      setTimeout(() => setSuccessMessage(null), 4000);
-      await fetchVersions(selectedTemplateId);
+        ifMatch: etag,
+      });
     } catch (err: unknown) {
       if (!captureConflict(err)) {
-        setError(extractErrorMessage(err, 'ย้อนเวอร์ชันไม่สำเร็จ'));
+        setActionError({
+          templateId: selectedTemplateId,
+          message: extractErrorMessage(err, 'ย้อนเวอร์ชันไม่สำเร็จ'),
+        });
       }
-    } finally {
-      setRollingBack(false);
     }
   };
+
+  const queryErrorMessage = versionQuery.error
+    ? extractErrorMessage(versionQuery.error, 'ไม่สามารถโหลดประวัติเวอร์ชันได้')
+    : null;
+  const error =
+    (actionError?.templateId === selectedTemplateId ? actionError.message : null) ??
+    queryErrorMessage;
 
   return {
     templates,
@@ -102,15 +166,18 @@ export function useVersionHistory(initialTemplateId?: string) {
     selectedVersion,
     setSelectedVersion,
     currentHtml,
-    loading,
-    rollingBack,
+    loading: Boolean(selectedTemplateId) && (versionQuery.isLoading || versionQuery.isRefetching),
+    rollingBack: rollbackMutation.isPending,
     error,
     successMessage,
     conflict,
     clearConflict,
     handleRollback,
     refresh: () => {
-      if (selectedTemplateId) fetchVersions(selectedTemplateId);
+      if (!selectedTemplateId) return;
+      setActionError(null);
+      clearConflict();
+      void versionQuery.refetch();
     },
   };
 }

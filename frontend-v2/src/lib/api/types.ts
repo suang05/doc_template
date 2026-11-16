@@ -74,7 +74,6 @@ export type GenerateDocumentResultDto = SchemaOf<'GenerateDocumentResultDto'>;
 export type PreviewDocumentRequest = SchemaOf<'PreviewDocumentRequest'>;
 export type DocumentJobResultDto = SchemaOf<'DocumentJobResultDto'>;
 export type DocumentJobItemDto = SchemaOf<'DocumentJobItemDto'>;
-export type DocumentJobListResult = SchemaOf<'DocumentJobListResult'>;
 export type CreateDocumentJobRequest = SchemaOf<'CreateDocumentJobRequest'>;
 export type CreateDocumentJobItemRequest = SchemaOf<'CreateDocumentJobItemRequest'>;
 export type DocumentVersionDto = SchemaOf<'DocumentVersionDto'>;
@@ -88,8 +87,38 @@ export interface ApiEnvelope<T> {
 }
 
 export interface PagedEnvelope<T> {
-  data: T[];
-  pagination: PaginationMetadata;
+  data: T[] | null;
+  pagination?: PaginationMetadata;
+}
+
+export interface NormalizedPagination {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  nextCursor: string | null;
+}
+
+export function normalizePagination(
+  pagination: PaginationMetadata | undefined,
+  fallbackLimit = 20,
+  fallbackPage = 1,
+): NormalizedPagination {
+  const limit = pagination?.limit && pagination.limit > 0 ? pagination.limit : fallbackLimit;
+  const page = pagination?.page && pagination.page > 0 ? pagination.page : fallbackPage;
+  const totalCount = pagination?.totalCount ?? 0;
+  const totalPages =
+    pagination?.totalPages && pagination.totalPages > 0
+      ? pagination.totalPages
+      : Math.max(1, Math.ceil(totalCount / limit));
+
+  return {
+    page,
+    limit,
+    totalCount,
+    totalPages,
+    nextCursor: pagination?.nextCursor ?? null,
+  };
 }
 
 export interface ResourceWithETag<T> {

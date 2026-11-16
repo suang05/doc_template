@@ -43,6 +43,7 @@ export const ProjectsControlPlaneView: React.FC = () => {
     quota,
     quotaEtag,
     loadingQuota,
+    quotaError,
     savingQuota,
     loadQuota,
     saveQuota,
@@ -50,12 +51,14 @@ export const ProjectsControlPlaneView: React.FC = () => {
     grantFilterProjectId,
     setGrantFilterProjectId,
     loadingGrants,
+    grantsError,
     revokingGrantId,
     loadGrants,
     issueGrant,
     revokeGrant,
     fonts,
     loadingFonts,
+    fontsError,
     uploadingFont,
     loadFonts,
     uploadFont,
@@ -166,6 +169,7 @@ export const ProjectsControlPlaneView: React.FC = () => {
               quota={quota}
               quotaEtag={quotaEtag}
               loading={loadingQuota}
+              error={quotaError}
               saving={savingQuota}
               onLoadQuota={loadQuota}
               onSaveQuota={saveQuota}
@@ -181,6 +185,7 @@ export const ProjectsControlPlaneView: React.FC = () => {
               filterProjectId={grantFilterProjectId}
               onFilterProjectChange={setGrantFilterProjectId}
               loading={loadingGrants}
+              error={grantsError}
               revokingGrantId={revokingGrantId}
               onLoadGrants={loadGrants}
               onIssueGrant={issueGrant}
@@ -194,6 +199,7 @@ export const ProjectsControlPlaneView: React.FC = () => {
             <PlatformFontsTabSection
               fonts={fonts}
               loading={loadingFonts}
+              error={fontsError}
               uploading={uploadingFont}
               onLoadFonts={loadFonts}
               onUploadFont={uploadFont}

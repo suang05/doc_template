@@ -1,14 +1,41 @@
 using System.Security.Cryptography;
-using SmkDoc.Application.Common.Helpers;
+using SmkDoc.Application.Common.Streams;
 
-namespace SmkDoc.Tests.Application.Common.Helpers;
+namespace SmkDoc.Tests.Application.Common.Streams;
 
 public sealed class SpooledRenderOutputTests
 {
     [Fact]
-    public async Task CreateAndDisposeSourceAsync_WithMultiChunkNonSeekableStream_ComputesExactHashDisposesSourceAndDeletesTempFileOnClose()
+    public async Task CreateAndDisposeSourceAsync_WhenPayloadWithinMemoryThreshold_KeepsInPooledRamComputesHashAndDisposesSource()
     {
-        // Arrange: 200 KB payload (> 81,920-byte LOH-safe chunk size)
+        // Arrange: 12 KB payload (<= 65,536-byte HybridSpoolStream in-memory threshold)
+        var payload = new byte[12_345];
+        RandomNumberGenerator.Fill(payload);
+        var expectedSha256 = Convert.ToHexStringLower(SHA256.HashData(payload));
+
+        using var sourceStream = new TrackingNonSeekableStream(payload);
+
+        // Act
+        await using var spooled = await SpooledRenderOutput.CreateAndDisposeSourceAsync(sourceStream);
+
+        // Assert
+        sourceStream.IsDisposed.Should().BeTrue("upstream socket stream must be disposed immediately after spooling");
+        spooled.FileSizeBytes.Should().Be(payload.Length);
+        spooled.Sha256Hex.Should().Be(expectedSha256);
+
+        var hybridSpool = spooled.ContentStream.Should().BeOfType<HybridSpoolStream>().Subject;
+        hybridSpool.IsSpilledToDisk.Should().BeFalse("payload <= 65,536 bytes must stay in pooled RAM without temp disk I/O");
+        hybridSpool.SpoolFilePath.Should().BeNull();
+
+        using var readBack = new MemoryStream();
+        await spooled.ContentStream.CopyToAsync(readBack);
+        readBack.ToArray().Should().Equal(payload);
+    }
+
+    [Fact]
+    public async Task CreateAndDisposeSourceAsync_WithMultiChunkNonSeekableStream_SpillsToDiskComputesExactHashDisposesSourceAndDeletesTempFileOnClose()
+    {
+        // Arrange: 200 KB payload (> 65,536-byte LOH-safe HybridSpoolStream threshold)
         var payload = new byte[200_000];
         RandomNumberGenerator.Fill(payload);
         var expectedSha256 = Convert.ToHexStringLower(SHA256.HashData(payload));
@@ -23,16 +50,18 @@ public sealed class SpooledRenderOutputTests
             spooled.FileSizeBytes.Should().Be(payload.Length);
             spooled.Sha256Hex.Should().Be(expectedSha256);
 
-            var fileStream = spooled.ContentStream.Should().BeOfType<FileStream>().Subject;
-            underlyingTempPath = fileStream.Name;
-            File.Exists(underlyingTempPath).Should().BeTrue();
+            var hybridSpool = spooled.ContentStream.Should().BeOfType<HybridSpoolStream>().Subject;
+            hybridSpool.IsSpilledToDisk.Should().BeTrue("payload > 65,536 bytes must spill to a temporary file");
+            underlyingTempPath = hybridSpool.SpoolFilePath;
+            underlyingTempPath.Should().NotBeNullOrWhiteSpace();
+            File.Exists(underlyingTempPath!).Should().BeTrue();
 
             using var readBack = new MemoryStream();
             await spooled.ContentStream.CopyToAsync(readBack);
             readBack.ToArray().Should().Equal(payload);
         }
 
-        // Assert: FileOptions.DeleteOnClose automatically removes temporary file
+        // Assert: HybridSpoolStream DeleteOnClose automatically removes temporary file
         underlyingTempPath.Should().NotBeNullOrWhiteSpace();
         File.Exists(underlyingTempPath!).Should().BeFalse("DeleteOnClose must remove the temporary spool file immediately upon disposal");
     }

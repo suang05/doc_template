@@ -1,13 +1,15 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { templatesApi } from '@/features/templates/api/templates.api';
+import { TEMPLATES_QUERY_KEY } from '@/features/templates/hooks/useTemplates';
 import { extractErrorMessage } from '@/lib/api/client';
+import { withTimeoutSignal } from '@/lib/api/withTimeoutSignal';
 import type {
   TemplateDto,
   TemplateValidationResultDto,
   TemplateVersionDto,
 } from '@/lib/api/types';
 import { useConflictRecovery } from '@/hooks/useConflictRecovery';
-import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
 
 export const DEFAULT_STARTER_HTML = `<!DOCTYPE html>
 <html lang="th">
@@ -136,7 +138,80 @@ export const getCombinedHtml = (main: string, header: string, footer: string) =>
 const defaultParsed = parseCombinedHtml(DEFAULT_STARTER_HTML);
 const DEFAULT_NORMALIZED = getCombinedHtml(defaultParsed.main, defaultParsed.header, defaultParsed.footer);
 
+interface StudioBundle {
+  template: TemplateDto;
+  main: string;
+  header: string;
+  footer: string;
+  normalizedHtml: string;
+  etag: string | null;
+  persistedSamplePayload: string | null;
+  dataSchema: string | null;
+  versions: TemplateVersionDto[];
+}
+
+async function loadStudioBundle(templateId: string, signal: AbortSignal): Promise<StudioBundle> {
+  const templates = await templatesApi.listTemplates({ signal });
+  const current = templates.find((t) => t.id === templateId);
+  if (!current) throw new Error('ไม่พบเทมเพลตที่ต้องการแก้ไข');
+
+  let content = '';
+  let resolvedEtag: string | null = null;
+  let resolvedSamplePayload: string | null = null;
+  let resolvedDataSchema: string | null = null;
+
+  try {
+    const studioRes = await templatesApi.getTemplateStudioWithETag(templateId, { signal });
+    const studioBundle = studioRes.data;
+    resolvedEtag = studioRes.etag;
+    content = studioBundle.html;
+    if (studioBundle.samplePayload) {
+      resolvedSamplePayload = studioBundle.samplePayload;
+    }
+    if (studioBundle.dataSchema) {
+      resolvedDataSchema = studioBundle.dataSchema;
+    }
+  } catch (err: unknown) {
+    if (signal.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+      throw err;
+    }
+    try {
+      content = await templatesApi.getTemplateHtml(templateId, { signal });
+      const metaRes = await templatesApi
+        .getTemplateWithETag(templateId, { signal })
+        .catch(() => null);
+      resolvedEtag = metaRes?.etag ?? null;
+    } catch (innerErr: unknown) {
+      if (signal.aborted || (innerErr instanceof DOMException && innerErr.name === 'AbortError')) {
+        throw innerErr;
+      }
+      content = '';
+    }
+  }
+
+  if (!content || !content.trim()) {
+    content = DEFAULT_STARTER_HTML;
+  }
+
+  const { main, header, footer } = parseCombinedHtml(content);
+  const normalizedHtml = getCombinedHtml(main, header, footer);
+  const versions = await templatesApi.listTemplateVersions(templateId, { signal });
+
+  return {
+    template: current,
+    main,
+    header,
+    footer,
+    normalizedHtml,
+    etag: resolvedEtag,
+    persistedSamplePayload: resolvedSamplePayload,
+    dataSchema: resolvedDataSchema,
+    versions,
+  };
+}
+
 export function useTemplateStudio(templateId: string | null) {
+  const queryClient = useQueryClient();
   const [template, setTemplate] = useState<TemplateDto | null>(null);
   const [html, setHtml] = useState<string>(DEFAULT_NORMALIZED);
   const [initialHtml, setInitialHtml] = useState<string>(DEFAULT_NORMALIZED);
@@ -147,10 +222,8 @@ export function useTemplateStudio(templateId: string | null) {
   const [footerHtml, setFooterHtml] = useState<string>(defaultParsed.footer);
 
   const [isDirty, setIsDirty] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [validating, setValidating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [versions, setVersions] = useState<TemplateVersionDto[]>([]);
   const [validationResult, setValidationResult] = useState<TemplateValidationResultDto | null>(null);
   const [etag, setEtag] = useState<string | null>(null);
@@ -159,71 +232,64 @@ export function useTemplateStudio(templateId: string | null) {
   const [persistedSamplePayload, setPersistedSamplePayload] = useState<string | null>(null);
   const [dataSchema, setDataSchema] = useState<string | null>(null);
 
-  const loadTemplateData = useCallback(async (signal?: AbortSignal) => {
-    if (!templateId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const templates = await templatesApi.listTemplates({ signal });
-      const current = templates.find((t) => t.id === templateId);
-      if (!current) throw new Error('ไม่พบเทมเพลตที่ต้องการแก้ไข');
-      setTemplate(current);
+  const forceSyncRef = useRef(false);
+  const lastSyncedRef = useRef<{ templateId: string; dataUpdatedAt: number } | null>(null);
 
-      let content = '';
-      try {
-        const studioRes = await templatesApi.getTemplateStudioWithETag(templateId);
-        const studioBundle = studioRes.data;
-        setEtag(studioRes.etag);
-        clearConflict();
-        content = studioBundle.html;
-        if (studioBundle.samplePayload) {
-          setPersistedSamplePayload(studioBundle.samplePayload);
-        }
-        if (studioBundle.dataSchema) {
-          setDataSchema(studioBundle.dataSchema);
-        }
-      } catch {
-        try {
-          content = await templatesApi.getTemplateHtml(templateId);
-          const metaRes = await templatesApi.getTemplateWithETag(templateId).catch(() => null);
-          setEtag(metaRes?.etag ?? null);
-        } catch {
-          content = '';
-        }
-      }
+  const studioQuery = useQuery<StudioBundle, Error>({
+    queryKey: ['template-studio', templateId] as const,
+    enabled: Boolean(templateId),
+    refetchOnWindowFocus: false,
+    queryFn: ({ signal }) =>
+      withTimeoutSignal((timedSignal) => loadStudioBundle(templateId!, timedSignal), signal),
+  });
 
-      if (!content || !content.trim()) {
-        content = DEFAULT_STARTER_HTML;
-      }
-
-      const { main, header, footer } = parseCombinedHtml(content);
-      const normalizedHtml = getCombinedHtml(main, header, footer);
-
-      setMainHtml(main);
-      setHeaderHtml(header);
-      setFooterHtml(footer);
-      setHtml(normalizedHtml);
-      setInitialHtml(normalizedHtml);
-      setIsDirty(false);
-
-      const vList = await templatesApi.listTemplateVersions(templateId);
-      setVersions(vList);
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลเทมเพลตได้');
-    } finally {
-      setLoading(false);
-    }
-  }, [templateId, clearConflict]);
-
+  // Hydrate editable studio buffers when template selection changes or clean reload completes
   useEffect(() => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    if (!templateId) {
+      lastSyncedRef.current = null;
+      forceSyncRef.current = false;
+      return;
+    }
 
-    loadTemplateData(controller.signal).finally(() => clearTimeout(timeoutId));
+    const bundle = studioQuery.data;
+    if (!bundle) return;
 
-    return () => controller.abort();
-  }, [loadTemplateData]);
+    const templateChanged = lastSyncedRef.current?.templateId !== templateId;
+    const updatedChanged = lastSyncedRef.current?.dataUpdatedAt !== studioQuery.dataUpdatedAt;
+    const shouldHydrate =
+      templateChanged || forceSyncRef.current || (!isDirty && updatedChanged);
+
+    if (!shouldHydrate) return;
+
+    forceSyncRef.current = false;
+    lastSyncedRef.current = { templateId, dataUpdatedAt: studioQuery.dataUpdatedAt };
+
+    setTemplate(bundle.template);
+    setEtag(bundle.etag);
+    clearConflict();
+    if (bundle.persistedSamplePayload) {
+      setPersistedSamplePayload(bundle.persistedSamplePayload);
+    }
+    if (bundle.dataSchema) {
+      setDataSchema(bundle.dataSchema);
+    }
+    setMainHtml(bundle.main);
+    setHeaderHtml(bundle.header);
+    setFooterHtml(bundle.footer);
+    setHtml(bundle.normalizedHtml);
+    setInitialHtml(bundle.normalizedHtml);
+    setIsDirty(false);
+    setVersions(bundle.versions);
+    setActionError(null);
+  }, [templateId, studioQuery.data, studioQuery.dataUpdatedAt, isDirty, clearConflict]);
+
+  const reloadStudio = useCallback(async () => {
+    if (!templateId) return;
+    forceSyncRef.current = true;
+    setActionError(null);
+    clearConflict();
+    await studioQuery.refetch();
+  }, [templateId, clearConflict, studioQuery]);
 
   // Sync individual editor parts back to the combined HTML
   useEffect(() => {
@@ -239,59 +305,117 @@ export function useTemplateStudio(templateId: string | null) {
   const updateHeaderHtml = (val: string) => setHeaderHtml(val);
   const updateFooterHtml = (val: string) => setFooterHtml(val);
 
-  const saveHtmlAction = useCallback(async (changeNote?: string, samplePayload?: string) => {
-    if (!templateId) throw new Error('ไม่พบ Template ID — กรุณาเปิด Template จากรายการก่อนบันทึก');
-    setSaving(true);
-    setError(null);
-    clearConflict();
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async ({
+      targetId,
+      nextHtml,
+      changeNote,
+      samplePayload,
+      ifMatch,
+    }: {
+      targetId: string;
+      nextHtml: string;
+      changeNote?: string;
+      samplePayload?: string;
+      ifMatch: string | null;
+    }) => {
       const res = await templatesApi.saveTemplateHtmlWithETag(
-        templateId,
+        targetId,
         {
-          html,
+          html: nextHtml,
           samplePayload,
           changeNote: changeNote || 'แก้ไขจาก Template Studio',
         },
-        etag,
+        ifMatch,
       );
-      if (res.etag) {
-        setEtag(res.etag);
-      } else {
-        const latest = await templatesApi.getTemplateWithETag(templateId).catch(() => null);
-        if (latest?.etag) setEtag(latest.etag);
+      let nextEtag = res.etag;
+      if (!nextEtag) {
+        const latest = await templatesApi.getTemplateWithETag(targetId).catch(() => null);
+        nextEtag = latest?.etag ?? null;
       }
-      setInitialHtml(html);
+      const vList = await templatesApi.listTemplateVersions(targetId);
+      return {
+        version: res.data.version,
+        etag: nextEtag,
+        versions: vList,
+        savedHtml: nextHtml,
+        samplePayload,
+      };
+    },
+    onSuccess: async (result, variables) => {
+      if (result.etag) {
+        setEtag(result.etag);
+      }
+      setInitialHtml(result.savedHtml);
       setIsDirty(false);
-      if (samplePayload) {
-        setPersistedSamplePayload(samplePayload);
+      if (result.samplePayload) {
+        setPersistedSamplePayload(result.samplePayload);
       }
-      const vList = await templatesApi.listTemplateVersions(templateId);
-      setVersions(vList);
-      return res.data.version;
-    } catch (err: unknown) {
-      if (!captureConflict(err)) {
-        const msg = extractErrorMessage(err, 'บันทึก HTML ไม่สำเร็จ');
-        setError(msg);
+      setVersions(result.versions);
+      queryClient.setQueryData<StudioBundle>(['template-studio', variables.targetId], (prev) =>
+        prev
+          ? {
+              ...prev,
+              normalizedHtml: result.savedHtml,
+              etag: result.etag ?? prev.etag,
+              persistedSamplePayload: result.samplePayload ?? prev.persistedSamplePayload,
+              versions: result.versions,
+            }
+          : prev,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['template-versions', variables.targetId] }),
+        queryClient.invalidateQueries({ queryKey: TEMPLATES_QUERY_KEY }),
+      ]);
+    },
+  });
+
+  const saveHtmlAction = useCallback(
+    async (changeNote?: string, samplePayload?: string) => {
+      if (!templateId) throw new Error('ไม่พบ Template ID — กรุณาเปิด Template จากรายการก่อนบันทึก');
+      setActionError(null);
+      clearConflict();
+      try {
+        const result = await saveMutation.mutateAsync({
+          targetId: templateId,
+          nextHtml: html,
+          changeNote,
+          samplePayload,
+          ifMatch: etag,
+        });
+        return result.version;
+      } catch (err: unknown) {
+        if (!captureConflict(err)) {
+          const msg = extractErrorMessage(err, 'บันทึก HTML ไม่สำเร็จ');
+          setActionError(msg);
+        }
+        throw err;
       }
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }, [templateId, html, etag, captureConflict, clearConflict]);
+    },
+    [templateId, html, etag, saveMutation, captureConflict, clearConflict],
+  );
 
   const validate = useCallback(async () => {
     if (!templateId) return;
     setValidating(true);
+    setActionError(null);
     try {
       const res = await templatesApi.validateTemplate(templateId, html);
       setValidationResult(res);
       return res;
     } catch (err: unknown) {
-      setError(extractErrorMessage(err, 'ตรวจสอบโครงสร้างไม่สำเร็จ'));
+      setActionError(extractErrorMessage(err, 'ตรวจสอบโครงสร้างไม่สำเร็จ'));
     } finally {
       setValidating(false);
     }
   }, [templateId, html]);
+
+  const queryErrorMessage = studioQuery.error
+    ? extractErrorMessage(studioQuery.error, 'ไม่สามารถโหลดข้อมูลเทมเพลตได้')
+    : null;
+  const error = actionError ?? queryErrorMessage;
+  const loading = Boolean(templateId) && (studioQuery.isLoading || studioQuery.isRefetching);
+  const saving = saveMutation.isPending;
 
   return {
     template,
@@ -314,9 +438,9 @@ export function useTemplateStudio(templateId: string | null) {
     etag,
     conflict,
     clearConflict,
-    reloadStudio: () => loadTemplateData(),
+    reloadStudio,
     saveHtml: saveHtmlAction,
     validate,
-    reload: () => loadTemplateData(),
+    reload: reloadStudio,
   };
 }

@@ -49,7 +49,11 @@ export const ApiDocsView: React.FC = () => {
         <p className="text-xs text-textSecondary leading-relaxed">
           สำหรับการเชื่อมต่อแบบ Machine-to-Machine ให้ส่ง Header{' '}
           <code className="px-1.5 py-0.5 bg-surface rounded-xs border border-border font-mono text-[11px] text-primary">
-            X-API-Key: &lt;YOUR_API_KEY&gt;
+            Authorization: ApiKey smk_live_&lt;YOUR_API_KEY&gt;
+          </code>{' '}
+          และ{' '}
+          <code className="px-1.5 py-0.5 bg-surface rounded-xs border border-border font-mono text-[11px] text-primary">
+            Project-Id: &lt;PROJECT_UUID&gt;
           </code>{' '}
           พร้อมระบุ{' '}
           <code className="px-1.5 py-0.5 bg-surface rounded-xs border border-border font-mono text-[11px] text-primary">
@@ -57,7 +61,7 @@ export const ApiDocsView: React.FC = () => {
           </code>{' '}
           ทุกครั้งที่ส่งคำสั่งสร้างเอกสารหรือคิวงาน และระบุ{' '}
           <code className="px-1.5 py-0.5 bg-surface rounded-xs border border-border font-mono text-[11px] text-primary">
-            If-Match: &quot;...&quot;
+            If-Match: &quot;v1&quot;
           </code>{' '}
           สำหรับการแก้ไขหรือเปลี่ยนสถานะที่ใช้ Optimistic Concurrency
         </p>
@@ -182,7 +186,8 @@ export const ApiDocsView: React.FC = () => {
                 {codeLang === 'curl' && (
                   <CodeBlock
                     code={`curl -X POST "${API_BASE}/api/v1/documents" \\
-  -H "X-API-Key: YOUR_API_KEY" \\
+  -H "Authorization: ApiKey smk_live_YOUR_API_KEY" \\
+  -H "Project-Id: YOUR_PROJECT_UUID" \\
   -H "Idempotency-Key: $(uuidgen)" \\
   -H "Content-Type: application/json" \\
   -d '{"slug":"condo-sales-agreement","payload":{"contractNo":"SMK-CONDO-2026-001","customerName":"นายสมชาย ใจดี"},"outputFormat":"pdf"}'`}
@@ -212,17 +217,23 @@ export const ApiDocsView: React.FC = () => {
 });
 
 const { data } = await response.json();
-console.log('Presigned Download URL:', data.url);`}
+// Gateway relative artifact URL (prefix with /api/proxy in Portal browser sessions)
+const proxyStreamUrl = data.url.startsWith('/api/v1/') ? \`/api/proxy\${data.url.slice(4)}\` : data.url;
+console.log('Gateway Artifact Stream URL:', proxyStreamUrl);`}
                     language="typescript"
                   />
                 )}
 
                 {codeLang === 'csharp' && (
                   <CodeBlock
-                    code={`using var httpClient = new HttpClient();
-httpClient.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+                    code={`using System.Net.Http.Headers;
+
+using var httpClient = new HttpClient();
+httpClient.DefaultRequestHeaders.Authorization =
+    new AuthenticationHeaderValue("ApiKey", apiKey); // smk_live_...
 
 using var request = new HttpRequestMessage(HttpMethod.Post, "http://document-server:8080/api/v1/documents");
+request.Headers.Add("Project-Id", projectId.ToString());
 request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
 request.Content = JsonContent.Create(new
 {

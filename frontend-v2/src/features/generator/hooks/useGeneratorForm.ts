@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { FieldMappingDto, TemplateSchemaDto } from '@/lib/api/types';
 import { templatesApi } from '@/features/templates';
-import { FETCH_TIMEOUT_MS } from '@/constants/timeouts';
+import { withTimeoutSignal } from '@/lib/api/withTimeoutSignal';
 
 function setNestedValue(obj: Record<string, unknown>, path: string, value: string): void {
   const parts = path.split('.');
@@ -20,59 +21,87 @@ function setNestedValue(obj: Record<string, unknown>, path: string, value: strin
 const DEFAULT_FALLBACK_JSON =
   '{\n  "contractNo": "SMK-2026-001",\n  "customerName": "นายสมชาย ใจดี",\n  "amount": 2500000,\n  "effectiveDate": "2026-09-15"\n}';
 
+interface GeneratorFormQueryData {
+  mappings: FieldMappingDto[];
+  templateSchema: TemplateSchemaDto | null;
+}
+
 export function useGeneratorForm(templateId: string | undefined) {
-  const [mappings, setMappings] = useState<FieldMappingDto[]>([]);
-  const [mappingsLoading, setMappingsLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [fallbackJson, setFallbackJson] = useState(DEFAULT_FALLBACK_JSON);
   const [jsonError, setJsonError] = useState<string | null>(null);
-  const [templateSchema, setTemplateSchema] = useState<TemplateSchemaDto | null>(null);
+  const lastHydratedRef = useRef<{ templateId: string; dataUpdatedAt: number } | null>(null);
+
+  const formConfigQuery = useQuery<GeneratorFormQueryData>({
+    queryKey: ['generator-form', templateId] as const,
+    enabled: Boolean(templateId),
+    queryFn: ({ signal }) =>
+      withTimeoutSignal(async (timedSignal) => {
+        const [mappingsRes, schemaRes] = await Promise.allSettled([
+          templatesApi.getTemplateMappings(templateId!, { signal: timedSignal }),
+          templatesApi.getTemplateSchema(templateId!, { signal: timedSignal }),
+        ]);
+
+        const mappingsList =
+          mappingsRes.status === 'fulfilled' && Array.isArray(mappingsRes.value)
+            ? mappingsRes.value
+            : [];
+        const schema =
+          schemaRes.status === 'fulfilled' && schemaRes.value?.samplePayload
+            ? schemaRes.value
+            : null;
+
+        return { mappings: mappingsList, templateSchema: schema };
+      }, signal),
+  });
 
   useEffect(() => {
     if (!templateId) {
-      setMappings([]);
+      lastHydratedRef.current = null;
       setFormValues({});
       setFieldErrors({});
-      setTemplateSchema(null);
       return;
     }
-    setMappingsLoading(true);
-    setFieldErrors({});
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const templateChanged = lastHydratedRef.current?.templateId !== templateId;
+    if (templateChanged) {
+      setFieldErrors({});
+    }
 
-    Promise.allSettled([
-      templatesApi.getTemplateMappings(templateId),
-      templatesApi.getTemplateSchema(templateId),
-    ])
-      .then(([mappingsRes, schemaRes]) => {
-        if (controller.signal.aborted) return;
-        if (mappingsRes.status === 'fulfilled') {
-          const mappingsList = Array.isArray(mappingsRes.value) ? mappingsRes.value : [];
-          setMappings(mappingsList);
-          const initial: Record<string, string> = {};
-          for (const m of mappingsList) {
-            initial[m.sourcePath] = m.defaultValue ?? '';
-          }
-          setFormValues(initial);
+    if (
+      formConfigQuery.data &&
+      (templateChanged || lastHydratedRef.current?.dataUpdatedAt !== formConfigQuery.dataUpdatedAt)
+    ) {
+      const initial: Record<string, string> = {};
+      for (const m of formConfigQuery.data.mappings) {
+        initial[m.sourcePath] = m.defaultValue ?? '';
+      }
+      setFormValues(initial);
+
+      const samplePayload = formConfigQuery.data.templateSchema?.samplePayload;
+      if (samplePayload) {
+        try {
+          const parsed: unknown = JSON.parse(samplePayload);
+          setFallbackJson(JSON.stringify(parsed, null, 2));
+        } catch {
+          setFallbackJson(samplePayload);
         }
-        if (schemaRes.status === 'fulfilled' && schemaRes.value?.samplePayload) {
-          setTemplateSchema(schemaRes.value);
-          try {
-            const parsed: unknown = JSON.parse(schemaRes.value.samplePayload);
-            setFallbackJson(JSON.stringify(parsed, null, 2));
-          } catch {
-            setFallbackJson(schemaRes.value.samplePayload);
-          }
-        }
-        setMappingsLoading(false);
-      })
-      .finally(() => clearTimeout(timeoutId));
+      }
 
-    return () => controller.abort();
-  }, [templateId]);
+      lastHydratedRef.current = {
+        templateId,
+        dataUpdatedAt: formConfigQuery.dataUpdatedAt,
+      };
+    }
+  }, [templateId, formConfigQuery.data, formConfigQuery.dataUpdatedAt]);
+
+  const mappings = useMemo(
+    () => (templateId ? formConfigQuery.data?.mappings ?? [] : []),
+    [templateId, formConfigQuery.data?.mappings],
+  );
+  const templateSchema = templateId ? formConfigQuery.data?.templateSchema ?? null : null;
+  const mappingsLoading = Boolean(templateId) && formConfigQuery.isLoading;
 
   const hasMappings = Array.isArray(mappings) && mappings.length > 0;
 

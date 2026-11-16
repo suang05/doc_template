@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Database } from 'lucide-react';
 import { Tabs } from '@/components/ui';
 import { useDataConnections } from '../hooks/useDataConnections';
@@ -9,11 +9,7 @@ import { DatasetsSection } from './DatasetsSection';
 
 export const DatasourcesView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'connections' | 'datasets'>('connections');
-  const { connections, fetchConnections } = useDataConnections();
-
-  useEffect(() => {
-    if (activeTab === 'datasets') fetchConnections();
-  }, [activeTab, fetchConnections]);
+  const { connections } = useDataConnections();
 
   const tabs = [
     { id: 'connections', label: 'DataConnections', count: connections.length },

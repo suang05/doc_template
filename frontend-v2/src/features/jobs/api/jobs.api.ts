@@ -4,8 +4,8 @@ import type {
   ApiEnvelope,
   CreateDocumentJobRequest,
   DocumentJobItemDto,
-  DocumentJobListResult,
   DocumentJobResultDto,
+  PagedEnvelope,
   ResourceWithETag,
 } from '@/lib/api/types';
 
@@ -18,17 +18,16 @@ export const jobsApi = {
     status?: string;
     cursor?: string | null;
     limit?: number;
-  }): Promise<DocumentJobListResult> {
+  }): Promise<PagedEnvelope<DocumentJobResultDto>> {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.cursor) qs.set('cursor', params.cursor);
     if (params?.limit) qs.set('limit', String(params.limit));
     const query = qs.toString();
-    const res = await apiClient<ApiEnvelope<DocumentJobListResult>>(
+    return apiClient<PagedEnvelope<DocumentJobResultDto>>(
       `/api/v1/document-jobs${query ? `?${query}` : ''}`,
       { method: 'GET' },
     );
-    return res.data;
   },
 
   async getJobWithETag(jobId: string): Promise<DocumentJobResource> {

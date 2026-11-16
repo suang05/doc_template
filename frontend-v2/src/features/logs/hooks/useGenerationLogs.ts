@@ -1,36 +1,47 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { extractErrorMessage } from '@/lib/api/client';
-import type { GenerationLogDto } from '@/lib/api/types';
+import {
+  normalizePagination,
+  type GenerationLogDto,
+  type PagedEnvelope,
+} from '@/lib/api/types';
 import { logsApi } from '../api/logs.api';
 
+export const generationLogsQueryKey = (page: number, limit: number, appFilter: string) =>
+  ['logs', { page, limit, appFilter }] as const;
+
 export function useGenerationLogs() {
-  const [logs, setLogs] = useState<GenerationLogDto[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
   const [appFilter, setAppFilter] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await logsApi.listLogs(page, limit, appFilter);
-      setLogs(res.data);
-      setTotal(res.pagination.totalCount);
-    } catch (err) {
-      setError(extractErrorMessage(err, 'ไม่สามารถโหลดประวัติการสร้างเอกสารได้'));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, limit, appFilter]);
+  const normalizedApp = appFilter.trim();
 
-  useEffect(() => {
-    void fetchLogs();
-  }, [fetchLogs]);
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error: rawError,
+    refetch,
+  } = useQuery<PagedEnvelope<GenerationLogDto>, Error>({
+    queryKey: generationLogsQueryKey(page, limit, normalizedApp),
+    queryFn: () => logsApi.listLogs(page, limit, normalizedApp || undefined, true),
+    placeholderData: keepPreviousData,
+  });
+
+  const logs = data?.data ?? [];
+  const total = normalizePagination(data?.pagination, limit, page).totalCount;
+  const loading = isLoading || isFetching;
+  const error = rawError
+    ? extractErrorMessage(rawError, 'ไม่สามารถโหลดประวัติการสร้างเอกสารได้')
+    : null;
+
+  const refresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   return {
     logs,
@@ -43,6 +54,6 @@ export function useGenerationLogs() {
     setAppFilter,
     loading,
     error,
-    refresh: fetchLogs,
+    refresh,
   };
 }

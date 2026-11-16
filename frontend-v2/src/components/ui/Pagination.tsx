@@ -5,19 +5,20 @@ import { Button } from './Button';
 export interface PaginationProps {
   currentPage: number;
   totalItems: number;
-  pageSize: number;
+  limit: number;
   onPageChange: (page: number) => void;
 }
 
 export const Pagination: React.FC<PaginationProps> = ({
   currentPage,
   totalItems,
-  pageSize,
+  limit,
   onPageChange,
 }) => {
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
-  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalItems);
+  const safeLimit = limit > 0 ? limit : 1;
+  const totalPages = Math.ceil(totalItems / safeLimit) || 1;
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * safeLimit + 1;
+  const endItem = Math.min(currentPage * safeLimit, totalItems);
 
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-surface border border-border rounded-sm text-xs text-textSecondary">

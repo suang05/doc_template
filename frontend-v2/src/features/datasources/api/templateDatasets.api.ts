@@ -7,9 +7,11 @@ import type {
 
 export const getTemplateDatasets = async (
   templateId: string,
+  options?: RequestInit,
 ): Promise<TemplateDatasetDto[]> => {
   const res = await apiClient<ApiEnvelope<TemplateDatasetDto[]>>(
     `/api/v1/templates/${templateId}/datasets`,
+    options,
   );
   return res.data;
 };

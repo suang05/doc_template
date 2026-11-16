@@ -425,7 +425,7 @@ export const TenantsTabSection: React.FC<TenantsTabSectionProps> = ({
         <Pagination
           currentPage={pagination.page}
           totalItems={pagination.totalCount}
-          pageSize={pagination.pageSize}
+          limit={pagination.limit}
           onPageChange={onPageChange}
         />
       )}

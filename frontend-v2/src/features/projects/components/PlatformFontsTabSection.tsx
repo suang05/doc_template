@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { RefreshCw, Upload } from 'lucide-react';
 import {
   Badge,
@@ -28,6 +28,7 @@ import { toFieldErrorMap } from '@/utils/zod';
 interface PlatformFontsTabSectionProps {
   fonts: PlatformFontDto[];
   loading: boolean;
+  error?: string | null;
   uploading: boolean;
   onLoadFonts: (projectId?: string) => Promise<void>;
   onUploadFont: (
@@ -40,6 +41,7 @@ interface PlatformFontsTabSectionProps {
 export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = ({
   fonts,
   loading,
+  error: queryError,
   uploading,
   onLoadFonts,
   onUploadFont,
@@ -52,15 +54,7 @@ export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = (
   const [style, setStyle] = useState<'normal' | 'italic' | 'oblique'>('normal');
   const [fileError, setFileError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [loadError, setLoadError] = useState<string | null>(null);
   const { getKey: getUploadIdempotencyKey, rotateKey: rotateUploadIdempotencyKey, resetKey: resetUploadIdempotencyKey } = useIdempotencyKey();
-
-  useEffect(() => {
-    setLoadError(null);
-    onLoadFonts().catch((err) => {
-      setLoadError(extractErrorMessage(err, 'โหลดรายการฟอนต์แพลตฟอร์มไม่สำเร็จ'));
-    });
-  }, [onLoadFonts]);
 
   const openUploadModal = () => {
     setSelectedFile(null);
@@ -215,9 +209,9 @@ export const PlatformFontsTabSection: React.FC<PlatformFontsTabSectionProps> = (
         </div>
       </div>
 
-      {loadError && (
+      {queryError && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-sm">
-          {loadError}
+          {queryError}
         </div>
       )}
 

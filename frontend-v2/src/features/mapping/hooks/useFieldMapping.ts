@@ -1,15 +1,36 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { templatesApi } from '@/features/templates/api/templates.api';
 import { getTemplateDatasets } from '@/features/datasources/api/templateDatasets.api';
 import { extractErrorMessage } from '@/lib/api/client';
+import { withTimeoutSignal } from '@/lib/api/withTimeoutSignal';
 import type { TemplateDatasetDto } from '@/lib/api/types';
 import { type ConflictState, useConflictRecovery } from '@/hooks/useConflictRecovery';
 import { type MappingRow, newRow, dtoToRow, rowToSaveItem } from '../domain/mappingMapper';
 import { TOAST_AUTO_DISMISS_MS, BLOB_URL_REVOKE_DELAY_MS } from '@/constants/timeouts';
+
+async function fetchMappingsBundle(
+  templateId: string,
+  signal?: AbortSignal,
+): Promise<{ rows: MappingRow[]; etag: string | null }> {
+  try {
+    const [data, templateMeta] = await Promise.all([
+      templatesApi.getTemplateMappings(templateId, { signal }),
+      templatesApi.getTemplateWithETag(templateId, { signal }).catch(() => null),
+    ]);
+    const safeData = Array.isArray(data) ? data : [];
+    return {
+      rows: safeData.map(dtoToRow),
+      etag: templateMeta?.etag ?? null,
+    };
+  } catch {
+    return { rows: [], etag: null };
+  }
+}
 
 export type { MappingRow };
 
@@ -41,51 +62,94 @@ interface UseFieldMappingReturn {
 }
 
 export function useFieldMapping(selectedTemplateId: string): UseFieldMappingReturn {
+  const queryClient = useQueryClient();
   const [rows, setRows] = useState<MappingRow[]>([]);
   const [expandedSql, setExpandedSql] = useState<Set<string>>(new Set());
   const [expandedFx, setExpandedFx] = useState<Set<string>>(new Set());
-  const [templateDatasets, setTemplateDatasets] = useState<TemplateDatasetDto[]>([]);
   const [isDirty, setIsDirty] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [templateEtag, setTemplateEtag] = useState<string | null>(null);
   const { conflict, captureConflict, clearConflict } = useConflictRecovery();
+  const lastSyncedRef = useRef<{ templateId: string; dataUpdatedAt: number } | null>(null);
 
-  // Load template datasets when template changes
+  const datasetsQuery = useQuery<TemplateDatasetDto[], Error>({
+    queryKey: ['template-datasets', selectedTemplateId],
+    enabled: Boolean(selectedTemplateId),
+    queryFn: ({ signal }) =>
+      withTimeoutSignal(
+        (timedSignal) => getTemplateDatasets(selectedTemplateId, { signal: timedSignal }),
+        signal,
+      ).catch(() => []),
+  });
+
+  const templateDatasets = selectedTemplateId ? datasetsQuery.data ?? [] : [];
+
+  const mappingsQuery = useQuery<{ rows: MappingRow[]; etag: string | null }, Error>({
+    queryKey: ['template-mappings', selectedTemplateId],
+    enabled: Boolean(selectedTemplateId),
+    refetchOnWindowFocus: false,
+    queryFn: ({ signal }) =>
+      withTimeoutSignal(
+        (timedSignal) => fetchMappingsBundle(selectedTemplateId, timedSignal),
+        signal,
+      ),
+  });
+
+  // Synchronize server query snapshot into local editable rows when template changes or clean reload completes
   useEffect(() => {
-    if (!selectedTemplateId) return;
-    getTemplateDatasets(selectedTemplateId)
-      .then(d => setTemplateDatasets(d ?? []))
-      .catch(() => setTemplateDatasets([]));
-  }, [selectedTemplateId]);
-
-  const loadMappings = useCallback(async (templateId: string) => {
-    if (!templateId) return;
-    setLoading(true);
-    setIsDirty(false);
-    clearConflict();
-    try {
-      const [data, templateMeta] = await Promise.all([
-        templatesApi.getTemplateMappings(templateId),
-        templatesApi.getTemplateWithETag(templateId).catch(() => null),
-      ]);
-      const safeData = Array.isArray(data) ? data : [];
-      setRows(safeData.map(dtoToRow));
-      setTemplateEtag(templateMeta?.etag ?? null);
-    } catch {
+    if (!selectedTemplateId) {
+      lastSyncedRef.current = null;
       setRows([]);
       setTemplateEtag(null);
-    } finally {
-      setLoading(false);
+      setIsDirty(false);
+      clearConflict();
+      return;
     }
-  }, [clearConflict]);
 
-  // Reload mappings whenever the selected template changes
-  useEffect(() => {
-    if (selectedTemplateId) loadMappings(selectedTemplateId);
-  }, [selectedTemplateId, loadMappings]);
+    const templateChanged = lastSyncedRef.current?.templateId !== selectedTemplateId;
+    if (
+      mappingsQuery.data &&
+      (templateChanged ||
+        (!isDirty && lastSyncedRef.current?.dataUpdatedAt !== mappingsQuery.dataUpdatedAt))
+    ) {
+      setRows(mappingsQuery.data.rows);
+      setTemplateEtag(mappingsQuery.data.etag);
+      if (templateChanged) {
+        setIsDirty(false);
+        clearConflict();
+      }
+      lastSyncedRef.current = {
+        templateId: selectedTemplateId,
+        dataUpdatedAt: mappingsQuery.dataUpdatedAt,
+      };
+    } else if (templateChanged) {
+      setRows([]);
+      setTemplateEtag(null);
+      setIsDirty(false);
+      clearConflict();
+    }
+  }, [
+    selectedTemplateId,
+    mappingsQuery.data,
+    mappingsQuery.dataUpdatedAt,
+    isDirty,
+    clearConflict,
+  ]);
+
+  const loadMappings = useCallback(
+    async (templateId: string) => {
+      if (!templateId) return;
+      setIsDirty(false);
+      clearConflict();
+      if (templateId === selectedTemplateId) {
+        await mappingsQuery.refetch();
+      } else {
+        await queryClient.invalidateQueries({ queryKey: ['template-mappings', templateId] });
+      }
+    },
+    [clearConflict, mappingsQuery, queryClient, selectedTemplateId],
+  );
 
   const handleField = useCallback((id: string, field: string, value: unknown) => {
     setRows(prev => prev.map(r => {
@@ -152,30 +216,49 @@ export function useFieldMapping(selectedTemplateId: string): UseFieldMappingRetu
     setIsDirty(true);
   }, []);
 
-  const handleSave = useCallback(async (templateId: string) => {
-    if (!templateId) throw new Error('ไม่พบ Template ID');
-    setSaving(true);
-    setSavedOk(false);
-    clearConflict();
-    try {
-      const items = rows.map((row, idx) => rowToSaveItem(row, idx));
-      await templatesApi.saveTemplateMappings(templateId, items, templateEtag);
+  const saveMutation = useMutation({
+    mutationFn: async ({
+      templateId,
+      items,
+      ifMatch,
+    }: {
+      templateId: string;
+      items: ReturnType<typeof rowToSaveItem>[];
+      ifMatch: string | null;
+    }) => {
+      await templatesApi.saveTemplateMappings(templateId, items, ifMatch);
       const refreshed = await templatesApi.getTemplateWithETag(templateId).catch(() => null);
-      if (refreshed) {
-        setTemplateEtag(refreshed.etag);
+      return refreshed?.etag ?? null;
+    },
+    onSuccess: async (nextEtag, variables) => {
+      if (nextEtag) {
+        setTemplateEtag(nextEtag);
       }
       setIsDirty(false);
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), TOAST_AUTO_DISMISS_MS);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['template-mappings', variables.templateId] }),
+        queryClient.invalidateQueries({ queryKey: ['generator-form', variables.templateId] }),
+        queryClient.invalidateQueries({ queryKey: ['template-studio', variables.templateId] }),
+      ]);
+    },
+  });
+
+  const handleSave = useCallback(async (templateId: string) => {
+    if (!templateId) throw new Error('ไม่พบ Template ID');
+    setSavedOk(false);
+    clearConflict();
+    try {
+      const items = rows.map((row, idx) => rowToSaveItem(row, idx));
+      await saveMutation.mutateAsync({ templateId, items, ifMatch: templateEtag });
     } catch (err: unknown) {
       if (!captureConflict(err)) {
         throw new Error(extractErrorMessage(err, 'บันทึก Mapping ล้มเหลว'));
       }
       throw err;
-    } finally {
-      setSaving(false);
     }
-  }, [rows, templateEtag, captureConflict, clearConflict]);
+  }, [rows, templateEtag, saveMutation, captureConflict, clearConflict]);
 
   const handlePdfPreview = useCallback(async (templateId: string, sampleData: Record<string, unknown>) => {
     if (!templateId) return;
@@ -194,6 +277,9 @@ export function useFieldMapping(selectedTemplateId: string): UseFieldMappingRetu
     (r.dataSourceType === 'sql' && !r.datasetAlias) ||
     (r.dataSourceType !== 'sql' && !r.sourcePath.trim()),
   ).length;
+
+  const loading = Boolean(selectedTemplateId) && (mappingsQuery.isLoading || mappingsQuery.isRefetching);
+  const saving = saveMutation.isPending;
 
   return {
     rows, expandedSql, expandedFx, templateDatasets,

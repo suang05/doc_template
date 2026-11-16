@@ -91,11 +91,16 @@ function buildUpstreamHeaders(
     }
   });
 
-  if (accessToken) {
+  headers.delete('x-api-key');
+
+  const isM2mTest = req.headers.get('x-m2m-test') === 'true';
+  const incomingAuth = req.headers.get('authorization');
+  const hasApiKeyAuth = Boolean(incomingAuth && /^ApiKey\s+\S+/i.test(incomingAuth));
+
+  if (isM2mTest && hasApiKeyAuth && incomingAuth) {
+    headers.set('authorization', incomingAuth);
+  } else if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
-    if (req.headers.get('x-m2m-test') !== 'true') {
-      headers.delete('x-api-key');
-    }
   } else {
     headers.delete('authorization');
   }

@@ -9,6 +9,7 @@ import type {
   ApiEnvelope,
   CommitDraftResultDto,
   FieldMappingDto,
+  PagedEnvelope,
   ResourceWithETag,
   RollbackVersionResultDto,
   SaveFieldMappingItem,
@@ -22,24 +23,65 @@ import type {
   UpdateTemplateMetadataRequest,
 } from '@/lib/api/types';
 
+export interface ListTemplatesParams {
+  search?: string;
+  category?: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+  includeTotal?: boolean;
+}
+
+function buildTemplatesQuery(params?: ListTemplatesParams): string {
+  const qs = new URLSearchParams();
+  if (params?.search?.trim()) qs.set('search', params.search.trim());
+  if (params?.category?.trim()) qs.set('category', params.category.trim());
+  if (params?.isActive !== undefined) qs.set('isActive', String(params.isActive));
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  if (params?.includeTotal !== undefined) qs.set('includeTotal', String(params.includeTotal));
+  const encoded = qs.toString();
+  return encoded ? `?${encoded}` : '';
+}
+
 export const templatesApi = {
   /**
-   * List all templates (SSoT: GET /api/v1/templates)
+   * List templates with server-side pagination envelope (SSoT: GET /api/v1/templates)
    */
-  async listTemplates(options?: RequestInit): Promise<TemplateDto[]> {
-    const res = await apiClient<ApiEnvelope<TemplateDto[]>>('/api/v1/templates', {
-      method: 'GET',
-      ...options,
-    });
-    return res.data;
+  async listTemplatesPaged(
+    params?: ListTemplatesParams,
+    options?: RequestInit,
+  ): Promise<PagedEnvelope<TemplateDto>> {
+    return apiClient<PagedEnvelope<TemplateDto>>(
+      `/api/v1/templates${buildTemplatesQuery(params)}`,
+      {
+        method: 'GET',
+        ...options,
+      },
+    );
+  },
+
+  /**
+   * List templates belonging to the active project (SSoT: GET /api/v1/templates?limit=100)
+   */
+  async listTemplates(options?: RequestInit, params?: ListTemplatesParams): Promise<TemplateDto[]> {
+    const res = await templatesApi.listTemplatesPaged(
+      { limit: 100, includeTotal: true, ...params },
+      options,
+    );
+    return res.data ?? [];
   },
 
   /**
    * Fetch single template metadata along with its strong ETag for If-Match concurrency control.
    */
-  async getTemplateWithETag(id: string): Promise<ResourceWithETag<TemplateDto>> {
+  async getTemplateWithETag(
+    id: string,
+    options?: RequestInit,
+  ): Promise<ResourceWithETag<TemplateDto>> {
     const res = await apiRequestWithMeta<ApiEnvelope<TemplateDto>>(`/api/v1/templates/${id}`, {
       method: 'GET',
+      ...options,
     });
     return { ...res, data: res.data.data };
   },
@@ -62,17 +104,20 @@ export const templatesApi = {
   /**
    * Get template raw HTML content
    */
-  async getTemplateHtml(id: string): Promise<string> {
-    return apiClientText(`/api/v1/templates/${id}/html`);
+  async getTemplateHtml(id: string, options?: RequestInit): Promise<string> {
+    return apiClientText(`/api/v1/templates/${id}/html`, options);
   },
 
   /**
    * Get full studio bundle along with strong ETag from GET /api/v1/templates/{id}/studio
    */
-  async getTemplateStudioWithETag(id: string): Promise<ResourceWithETag<TemplateStudioDto>> {
+  async getTemplateStudioWithETag(
+    id: string,
+    options?: RequestInit,
+  ): Promise<ResourceWithETag<TemplateStudioDto>> {
     const res = await apiRequestWithMeta<ApiEnvelope<TemplateStudioDto>>(
       `/api/v1/templates/${id}/studio`,
-      { method: 'GET' },
+      { method: 'GET', ...options },
     );
     return { ...res, data: res.data.data };
   },
@@ -80,16 +125,22 @@ export const templatesApi = {
   /**
    * Get full studio bundle (HTML, persisted SamplePayload, DataSchema, Version)
    */
-  async getTemplateStudio(id: string): Promise<TemplateStudioDto> {
-    const res = await apiClient<ApiEnvelope<TemplateStudioDto>>(`/api/v1/templates/${id}/studio`);
+  async getTemplateStudio(id: string, options?: RequestInit): Promise<TemplateStudioDto> {
+    const res = await apiClient<ApiEnvelope<TemplateStudioDto>>(`/api/v1/templates/${id}/studio`, {
+      method: 'GET',
+      ...options,
+    });
     return res.data;
   },
 
   /**
    * Get template schema contract (DataSchema & SamplePayload) for any template format
    */
-  async getTemplateSchema(id: string): Promise<TemplateSchemaDto> {
-    const res = await apiClient<ApiEnvelope<TemplateSchemaDto>>(`/api/v1/templates/${id}/schema`);
+  async getTemplateSchema(id: string, options?: RequestInit): Promise<TemplateSchemaDto> {
+    const res = await apiClient<ApiEnvelope<TemplateSchemaDto>>(`/api/v1/templates/${id}/schema`, {
+      method: 'GET',
+      ...options,
+    });
     return res.data;
   },
 
@@ -158,9 +209,10 @@ export const templatesApi = {
   /**
    * Get field mappings for a template (SSoT: GET /api/v1/templates/{id}/mappings)
    */
-  async getTemplateMappings(id: string): Promise<FieldMappingDto[]> {
+  async getTemplateMappings(id: string, options?: RequestInit): Promise<FieldMappingDto[]> {
     const res = await apiClient<ApiEnvelope<FieldMappingDto[]>>(`/api/v1/templates/${id}/mappings`, {
       method: 'GET',
+      ...options,
     });
     return res.data;
   },
@@ -198,9 +250,10 @@ export const templatesApi = {
   /**
    * List template revision history (SSoT: GET /api/v1/templates/{id}/versions)
    */
-  async listTemplateVersions(id: string): Promise<TemplateVersionDto[]> {
+  async listTemplateVersions(id: string, options?: RequestInit): Promise<TemplateVersionDto[]> {
     const res = await apiClient<ApiEnvelope<TemplateVersionDto[]>>(`/api/v1/templates/${id}/versions`, {
       method: 'GET',
+      ...options,
     });
     return res.data;
   },

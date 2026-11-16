@@ -5,7 +5,9 @@ import {
   apiClientBlob,
   apiClientStream,
   apiRequestWithMeta,
+  toBffProxyUrl,
 } from '@/lib/api/client';
+import { normalizePagination } from '@/lib/api/types';
 
 describe('ApiError and RFC 9457 Problem Details', () => {
   it('instantiates with basic message and status code', () => {
@@ -197,7 +199,7 @@ describe('apiClient, ETag, Idempotency, and BFF Routing', () => {
     expect(sentHeaders['Content-Type']).toBe('application/json');
   });
 
-  it('never auto-attaches X-API-Key header to outgoing browser requests', async () => {
+  it('never auto-attaches X-API-Key or Authorization ApiKey headers to browser requests', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ data: [] }), {
         status: 200,
@@ -213,6 +215,69 @@ describe('apiClient, ETag, Idempotency, and BFF Routing', () => {
     const headers = init.headers as Record<string, string>;
     expect(headers['X-API-Key']).toBeUndefined();
     expect(headers['x-api-key']).toBeUndefined();
+    expect(headers['Authorization']).toBeUndefined();
+    expect(headers['authorization']).toBeUndefined();
+  });
+
+  it('toBffProxyUrl rewrites backend /api/v1/* paths & URLs while keeping safe/already-proxied targets intact', () => {
+    expect(toBffProxyUrl('  ')).toBe('#');
+    expect(toBffProxyUrl('/api/v1/generation-logs/log-1/artifact/file')).toBe(
+      '/api/proxy/v1/generation-logs/log-1/artifact/file',
+    );
+    expect(toBffProxyUrl('https://api.example.com/api/v1/generation-logs/log-1/artifact/file?dl=1#p1')).toBe(
+      '/api/proxy/v1/generation-logs/log-1/artifact/file?dl=1#p1',
+    );
+    expect(toBffProxyUrl('/api/proxy/v1/templates')).toBe('/api/proxy/v1/templates');
+    expect(toBffProxyUrl('blob:https://app.local/123')).toBe('blob:https://app.local/123');
+    expect(toBffProxyUrl('data:application/pdf;base64,AAAA')).toBe('data:application/pdf;base64,AAAA');
+    expect(toBffProxyUrl('/api/auth/session')).toBe('/api/auth/session');
+    expect(toBffProxyUrl('/api/health')).toBe('/api/health');
+  });
+
+  it('normalizePagination safely normalizes nullable totalCount, totalPages, and nextCursor', () => {
+    expect(normalizePagination(undefined, 25, 2)).toEqual({
+      page: 2,
+      limit: 25,
+      totalCount: 0,
+      totalPages: 1,
+      nextCursor: null,
+    });
+
+    expect(
+      normalizePagination({
+        page: 1,
+        limit: 10,
+        totalCount: 35,
+        totalPages: null,
+        nextCursor: 'cursor_2',
+      }),
+    ).toEqual({
+      page: 1,
+      limit: 10,
+      totalCount: 35,
+      totalPages: 4,
+      nextCursor: 'cursor_2',
+    });
+
+    expect(
+      normalizePagination(
+        {
+          page: 0,
+          limit: 0,
+          totalCount: null,
+          totalPages: 0,
+          nextCursor: undefined,
+        },
+        50,
+        1,
+      ),
+    ).toEqual({
+      page: 1,
+      limit: 50,
+      totalCount: 0,
+      totalPages: 1,
+      nextCursor: null,
+    });
   });
 
   it('maps /api/v1 routes via BFF proxy and keeps /api/health unproxied', async () => {

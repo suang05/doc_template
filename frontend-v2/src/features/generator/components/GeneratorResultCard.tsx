@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckCircle, Copy, ExternalLink, Download, AlertCircle } from 'lucide-react';
 import { CardBlock, Badge, Button } from '@/components/ui';
+import { toBffProxyUrl } from '@/lib/api/client';
 import type { GenerateDocumentResultDto } from '@/lib/api/types';
 
 export interface GeneratorResultCardProps {
@@ -14,6 +15,8 @@ export const GeneratorResultCard: React.FC<GeneratorResultCardProps> = ({
   error,
   onCopy,
 }) => {
+  const proxyDownloadUrl = result ? toBffProxyUrl(result.url) : '#';
+
   return (
     <>
       {result && (
@@ -49,7 +52,7 @@ export const GeneratorResultCard: React.FC<GeneratorResultCardProps> = ({
                 <Copy className="w-3.5 h-3.5" />
               </button>
               <a
-                href={result.url}
+                href={proxyDownloadUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="p-1 rounded-sm text-textMuted hover:text-textPrimary hover:bg-surface transition-colors"
@@ -62,7 +65,7 @@ export const GeneratorResultCard: React.FC<GeneratorResultCardProps> = ({
           </div>
 
           <div className="flex justify-end">
-            <a href={result.url} target="_blank" rel="noreferrer">
+            <a href={proxyDownloadUrl} target="_blank" rel="noreferrer">
               <Button variant="success" size="sm" icon={Download}>
                 ดาวน์โหลด ({result.outputFormat.toUpperCase()})
               </Button>

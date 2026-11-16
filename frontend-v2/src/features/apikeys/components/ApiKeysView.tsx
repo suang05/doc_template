@@ -225,7 +225,7 @@ export const ApiKeysView: React.FC = () => {
 
       <PageHeader
         title="การจัดการกุญแจเชื่อมต่อระบบ (API Keys Management)"
-        description="สร้างและควบคุมการเข้าถึงระบบเอกสารสำหรับแอปพลิเคชันภายนอก (ผ่าน Header: X-API-Key)"
+        description="สร้างและควบคุมการเข้าถึงระบบเอกสารสำหรับแอปพลิเคชันภายนอก (ผ่าน Header: Authorization: ApiKey smk_live_...)"
         icon={Key}
         iconColor="amber"
         rightSlot={

@@ -1472,13 +1472,6 @@ export interface components {
          * @description Standard API Response wrapper for successful requests that return data.
          *     Enforces the "Envelope Pattern" for consistent JSON schemas.
          */
-        ApiResponseOfDocumentJobListResult: {
-            data: null | components["schemas"]["DocumentJobListResult"];
-        };
-        /**
-         * @description Standard API Response wrapper for successful requests that return data.
-         *     Enforces the "Envelope Pattern" for consistent JSON schemas.
-         */
         ApiResponseOfDocumentJobResultDto: {
             data: null | components["schemas"]["DocumentJobResultDto"];
         };
@@ -1934,11 +1927,6 @@ export interface components {
             /** Format: date-time */
             updatedAt: null | string;
         };
-        DocumentJobListResult: {
-            items: components["schemas"]["DocumentJobResultDto"][];
-            nextCursor: null | string;
-            hasMore: boolean;
-        };
         /** @description Canonical Pipeline C document job projection implementing optimistic concurrency versioning (IHasVersion). */
         DocumentJobResultDto: {
             /** Format: uuid */
@@ -2175,6 +2163,14 @@ export interface components {
          * @description Paged API Response wrapper for collection endpoints.
          *     Encapsulates resource items in 'data' and pagination metadata in 'pagination'.
          */
+        PagedApiResponseOfDocumentJobResultDto: {
+            pagination?: components["schemas"]["PaginationMetadata"];
+            data?: null | components["schemas"]["DocumentJobResultDto"][];
+        };
+        /**
+         * @description Paged API Response wrapper for collection endpoints.
+         *     Encapsulates resource items in 'data' and pagination metadata in 'pagination'.
+         */
         PagedApiResponseOfGenerationLogDto: {
             pagination?: components["schemas"]["PaginationMetadata"];
             data?: null | components["schemas"]["GenerationLogDto"][];
@@ -2198,13 +2194,14 @@ export interface components {
         /** @description Standard pagination telemetry metadata envelope conforming to global REST API standards. */
         PaginationMetadata: {
             /** Format: int32 */
-            page: number;
+            page: null | number;
             /** Format: int32 */
             limit: number;
+            /** Format: int64 */
+            totalCount: null | number;
             /** Format: int32 */
-            totalCount: number;
-            /** Format: int32 */
-            totalPages: number;
+            totalPages: null | number;
+            nextCursor?: null | string;
         };
         /** @description Result returned after step 1 (parsing) of draft upload. */
         ParseDraftResultDto: {
@@ -2551,7 +2548,7 @@ export interface components {
             refreshToken: string;
             /**
              * Format: int32
-             * @default 86400
+             * @default 900
              */
             expiresIn: number;
             /** @default Bearer */
@@ -3356,7 +3353,8 @@ export interface operations {
             query?: {
                 search?: string;
                 page?: number;
-                pageSize?: number;
+                limit?: number;
+                includeTotal?: boolean;
             };
             header?: never;
             path?: never;
@@ -3738,6 +3736,7 @@ export interface operations {
                 page?: number;
                 limit?: number;
                 app?: string;
+                includeTotal?: boolean;
             };
             header?: {
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */
@@ -4915,7 +4914,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiResponseOfDocumentJobListResult"];
+                    "application/json": components["schemas"]["PagedApiResponseOfDocumentJobResultDto"];
                 };
             };
             /** @description Unauthorized */
@@ -7309,7 +7308,8 @@ export interface operations {
             query?: {
                 search?: string;
                 page?: number;
-                pageSize?: number;
+                limit?: number;
+                includeTotal?: boolean;
             };
             header?: never;
             path?: never;
@@ -7716,7 +7716,8 @@ export interface operations {
             query?: {
                 search?: string;
                 page?: number;
-                pageSize?: number;
+                limit?: number;
+                includeTotal?: boolean;
             };
             header?: never;
             path?: never;
@@ -10076,7 +10077,8 @@ export interface operations {
                 category?: string;
                 isActive?: boolean;
                 page?: number;
-                pageSize?: number;
+                limit?: number;
+                includeTotal?: boolean;
             };
             header?: {
                 /** @description Target tenant project UUID. Required for Bearer JWT requests on data-plane endpoints; optional for API keys (must match if supplied). */

@@ -20,6 +20,7 @@ import { documentsApi } from '@/features/generator';
 import { extractErrorMessage } from '@/lib/api/client';
 import type { GenerationLogDto, LogPayloadResultDto } from '@/lib/api/types';
 import { isSuccessGenerationStatus } from '@/constants/domain';
+import { downloadBlobFile } from '@/utils/download';
 import { formatThaiDateTime } from '@/utils/format';
 import type { DocumentFormat } from '@/tokens';
 import { logsApi } from '../api/logs.api';
@@ -64,12 +65,12 @@ export const LogsView: React.FC = () => {
   const handleDownload = async (logId: string) => {
     setDownloadingLogId(logId);
     try {
-      const { url } = await documentsApi.getDownloadUrlByLogId(logId);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const { blob, fileName } = await documentsApi.downloadArtifactFileByLogId(logId);
+      downloadBlobFile(blob, fileName || `artifact-${logId.slice(0, 8)}.pdf`);
     } catch (err) {
       setToast({
         type: 'error',
-        message: extractErrorMessage(err, 'ไม่สามารถดึงลิงก์ดาวน์โหลดได้'),
+        message: extractErrorMessage(err, 'ไม่สามารถดาวน์โหลดเอกสารได้'),
       });
     } finally {
       setDownloadingLogId(null);
@@ -213,7 +214,7 @@ export const LogsView: React.FC = () => {
           <Pagination
             currentPage={page}
             totalItems={total}
-            pageSize={limit}
+            limit={limit}
             onPageChange={setPage}
           />
         </div>

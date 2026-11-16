@@ -1,24 +1,28 @@
 using System.Buffers;
 using System.Security.Cryptography;
 
-namespace SmkDoc.Application.Common.Helpers;
+namespace SmkDoc.Application.Common.Streams;
 
 /// <summary>
-/// Zero-LOH temporary disk spooler that drains a non-seekable render stream using an ArrayPool buffer,
-/// computes incremental SHA-256 and exact byte length, disposes the upstream socket stream immediately,
-/// and cleans up the temporary file automatically via FileOptions.DeleteOnClose.
+/// Single-pass render output spooler backed by <see cref="HybridSpoolStream"/>.
+/// Drains an upstream render stream with a 64 KB pooled buffer (<see cref="HybridSpoolStream.PooledChunkSize"/>,
+/// strictly below the 85,000-byte .NET LOH threshold) while computing incremental SHA-256 and exact byte length,
+/// disposes the upstream socket stream immediately, and keeps small payloads (&lt;= 64 KB) in pooled RAM before
+/// spilling larger payloads to a <see cref="FileOptions.DeleteOnClose"/> temporary file.
 /// </summary>
 public sealed class SpooledRenderOutput : IAsyncDisposable, IDisposable
 {
-    public const int BufferSize = 65_536; // Strictly below 85,000-byte .NET LOH threshold
+    public const int BufferSize = HybridSpoolStream.PooledChunkSize;
 
-    public Stream ContentStream { get; }
+    private readonly HybridSpoolStream _spoolStream;
+
+    public Stream ContentStream => _spoolStream;
     public long FileSizeBytes { get; }
     public string Sha256Hex { get; }
 
-    private SpooledRenderOutput(Stream contentStream, long fileSizeBytes, string sha256Hex)
+    private SpooledRenderOutput(HybridSpoolStream spoolStream, long fileSizeBytes, string sha256Hex)
     {
-        ContentStream = contentStream;
+        _spoolStream = spoolStream;
         FileSizeBytes = fileSizeBytes;
         Sha256Hex = sha256Hex;
     }
@@ -27,15 +31,7 @@ public sealed class SpooledRenderOutput : IAsyncDisposable, IDisposable
     {
         ArgumentNullException.ThrowIfNull(sourceStream);
 
-        var tempPath = Path.Combine(Path.GetTempPath(), $"smkdoc_spool_{Guid.CreateVersion7():N}.tmp");
-        var fileStream = new FileStream(
-            tempPath,
-            FileMode.CreateNew,
-            FileAccess.ReadWrite,
-            FileShare.None,
-            BufferSize,
-            FileOptions.DeleteOnClose | FileOptions.Asynchronous | FileOptions.SequentialScan);
-
+        var spool = new HybridSpoolStream();
         byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(BufferSize);
         try
         {
@@ -53,20 +49,20 @@ public sealed class SpooledRenderOutput : IAsyncDisposable, IDisposable
                 while ((bytesRead = await sourceStream.ReadAsync(rentedBuffer.AsMemory(0, BufferSize), ct)) > 0)
                 {
                     hasher.AppendData(rentedBuffer, 0, bytesRead);
-                    await fileStream.WriteAsync(rentedBuffer.AsMemory(0, bytesRead), ct);
+                    await spool.WriteAsync(rentedBuffer.AsMemory(0, bytesRead), ct);
                     totalBytes += bytesRead;
                 }
             }
 
-            await fileStream.FlushAsync(ct);
-            fileStream.Position = 0;
+            await spool.FlushAsync(ct);
+            spool.Position = 0;
 
             var sha256Hex = Convert.ToHexStringLower(hasher.GetHashAndReset());
-            return new SpooledRenderOutput(fileStream, totalBytes, sha256Hex);
+            return new SpooledRenderOutput(spool, totalBytes, sha256Hex);
         }
         catch
         {
-            await fileStream.DisposeAsync();
+            await spool.DisposeAsync();
             throw;
         }
         finally
@@ -75,7 +71,7 @@ public sealed class SpooledRenderOutput : IAsyncDisposable, IDisposable
         }
     }
 
-    public void Dispose() => ContentStream.Dispose();
+    public void Dispose() => _spoolStream.Dispose();
 
-    public ValueTask DisposeAsync() => ContentStream.DisposeAsync();
+    public ValueTask DisposeAsync() => _spoolStream.DisposeAsync();
 }

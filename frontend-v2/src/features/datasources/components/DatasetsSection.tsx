@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Table2,
@@ -97,9 +97,6 @@ export const DatasetsSection: React.FC<DatasetsSectionProps> = ({ connections })
     null,
   );
 
-  useEffect(() => {
-    void fetchDatasets();
-  }, [fetchDatasets]);
 
   const openModal = async (dataset?: DatasetDto) => {
     clearConflict();

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Database,
   Trash2,
@@ -81,9 +81,6 @@ export const ConnectionsSection: React.FC = () => {
     null,
   );
 
-  useEffect(() => {
-    void fetchConnections();
-  }, [fetchConnections]);
 
   const openModal = async (connection?: DataConnectionDto) => {
     clearConflict();

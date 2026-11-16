@@ -155,7 +155,7 @@ describe('BFF Proxy Route (handleProxyRequest)', () => {
     expect(mgmtHeaders.get('Project-Id')).toBeNull();
   });
 
-  it('strips browser x-api-key header unless x-m2m-test is true', async () => {
+  it('strips x-api-key always and forwards Authorization ApiKey only when x-m2m-test is true', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => {
       return new Response(JSON.stringify({ data: {} }), {
         status: 200,
@@ -164,21 +164,34 @@ describe('BFF Proxy Route (handleProxyRequest)', () => {
     });
     global.fetch = fetchMock;
 
+    // 1. Browser request without x-m2m-test: must strip x-api-key AND replace Authorization: ApiKey with session Bearer
     const normalReq = new NextRequest('http://localhost:3001/api/proxy/v1/templates', {
       method: 'GET',
-      headers: { 'x-api-key': 'should-be-stripped' },
+      headers: {
+        'x-api-key': 'should-be-stripped',
+        authorization: 'ApiKey smk_live_forged-from-browser',
+      },
     });
     await handleProxyRequest(normalReq, ['v1', 'templates']);
     const [, normalInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(new Headers(normalInit.headers).get('x-api-key')).toBeNull();
+    const normalHeaders = new Headers(normalInit.headers);
+    expect(normalHeaders.get('x-api-key')).toBeNull();
+    expect(normalHeaders.get('authorization')).toBe('Bearer jwt-initial');
 
+    // 2. Explicit M2M sandbox test request: still strips x-api-key, preserves Authorization: ApiKey smk_live_...
     const m2mReq = new NextRequest('http://localhost:3001/api/proxy/v1/documents', {
       method: 'GET',
-      headers: { 'x-api-key': 'm2m-secret', 'x-m2m-test': 'true' },
+      headers: {
+        'x-api-key': 'legacy-header-still-stripped',
+        authorization: 'ApiKey smk_live_m2m-secret',
+        'x-m2m-test': 'true',
+      },
     });
     await handleProxyRequest(m2mReq, ['v1', 'documents']);
     const [, m2mInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(new Headers(m2mInit.headers).get('x-api-key')).toBe('m2m-secret');
+    const m2mHeaders = new Headers(m2mInit.headers);
+    expect(m2mHeaders.get('x-api-key')).toBeNull();
+    expect(m2mHeaders.get('authorization')).toBe('ApiKey smk_live_m2m-secret');
   });
 
   it('replays buffered JSON POST body after single-flight 401 refresh and forwards ETag/Retry-After/RateLimit headers', async () => {

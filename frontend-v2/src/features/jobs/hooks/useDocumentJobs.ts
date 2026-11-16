@@ -1,155 +1,161 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { extractErrorMessage } from '@/lib/api/client';
 import type {
   CreateDocumentJobRequest,
   DocumentJobItemDto,
   DocumentJobResultDto,
+  PagedEnvelope,
 } from '@/lib/api/types';
 import { TERMINAL_JOB_STATUSES } from '@/constants/domain';
 import { downloadBlobFile } from '@/utils/download';
-import { jobsApi } from '../api/jobs.api';
+import { jobsApi, type DocumentJobResource } from '../api/jobs.api';
 
 const DEFAULT_POLL_MS = 2500;
 const MIN_POLL_MS = 1500;
 const MAX_POLL_MS = 15000;
+
+interface InspectedJobDetail {
+  detail: DocumentJobResource;
+  items: DocumentJobItemDto[];
+}
 
 function clampPollMs(retryAfterSeconds?: number): number {
   if (!retryAfterSeconds || retryAfterSeconds <= 0) return DEFAULT_POLL_MS;
   return Math.min(MAX_POLL_MS, Math.max(MIN_POLL_MS, retryAfterSeconds * 1000));
 }
 
-export function useDocumentJobs() {
-  const [jobs, setJobs] = useState<DocumentJobResultDto[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export const documentJobsQueryKey = (statusFilter: string) =>
+  ['document-jobs', statusFilter] as const;
 
-  const [selectedJob, setSelectedJob] = useState<DocumentJobResultDto | null>(null);
-  const [selectedJobEtag, setSelectedJobEtag] = useState<string | null>(null);
-  const [selectedItems, setSelectedItems] = useState<DocumentJobItemDto[]>([]);
-  const [loadingDetail, setLoadingDetail] = useState(false);
+export const documentJobDetailQueryKey = (jobId: string | null) =>
+  ['document-job-detail', jobId] as const;
+
+export function useDocumentJobs() {
+  const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [inspectedJobId, setInspectedJobId] = useState<string | null>(null);
   const [mutatingJobId, setMutatingJobId] = useState<string | null>(null);
   const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
   const [pollDelayMs, setPollDelayMs] = useState<number>(DEFAULT_POLL_MS);
 
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchJobDetailBundle = useCallback(async (jobId: string): Promise<InspectedJobDetail> => {
+    const [detail, items] = await Promise.all([
+      jobsApi.getJobWithETag(jobId),
+      jobsApi.listJobItems(jobId),
+    ]);
+    if (detail.retryAfterSeconds) {
+      setPollDelayMs(clampPollMs(detail.retryAfterSeconds));
+    }
+    return { detail, items };
+  }, []);
 
-  const fetchJobs = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      setError(null);
-      try {
-        const res = await jobsApi.listJobs({
-          status: statusFilter || undefined,
-          limit: 20,
-        });
-        setJobs(res.items ?? []);
-        setNextCursor(res.nextCursor ?? null);
-        setHasMore(Boolean(res.hasMore));
-      } catch (err) {
-        if (!silent) {
-          setError(extractErrorMessage(err, 'ไม่สามารถโหลดรายการงาน Pipeline C ได้'));
-        }
-      } finally {
-        if (!silent) setLoading(false);
-      }
+  const listQuery = useInfiniteQuery<
+    PagedEnvelope<DocumentJobResultDto>,
+    Error,
+    InfiniteData<PagedEnvelope<DocumentJobResultDto>>,
+    ReturnType<typeof documentJobsQueryKey>,
+    string | null
+  >({
+    queryKey: documentJobsQueryKey(statusFilter),
+    initialPageParam: null,
+    queryFn: ({ pageParam }) =>
+      jobsApi.listJobs({
+        status: statusFilter || undefined,
+        cursor: pageParam,
+        limit: 20,
+      }),
+    getNextPageParam: (lastPage) => lastPage.pagination?.nextCursor ?? undefined,
+    refetchInterval: (query) => {
+      if (query.state.status === 'error') return false;
+      const pages = query.state.data?.pages ?? [];
+      const hasPending = pages.some((p) =>
+        (p.data ?? []).some((j) => !TERMINAL_JOB_STATUSES.has(j.status)),
+      );
+      return hasPending ? pollDelayMs : false;
     },
-    [statusFilter],
+  });
+
+  const jobs = useMemo(
+    () => listQuery.data?.pages.flatMap((page) => page.data ?? []) ?? [],
+    [listQuery.data],
   );
 
-  useEffect(() => {
-    void fetchJobs();
-  }, [fetchJobs]);
+  const detailQuery = useQuery<InspectedJobDetail, Error>({
+    queryKey: documentJobDetailQueryKey(inspectedJobId),
+    enabled: Boolean(inspectedJobId),
+    queryFn: () => fetchJobDetailBundle(inspectedJobId!),
+    refetchInterval: (query) => {
+      if (query.state.status === 'error') return false;
+      const status = query.state.data?.detail.data.status;
+      if (!status || TERMINAL_JOB_STATUSES.has(status)) return false;
+      return clampPollMs(query.state.data?.detail.retryAfterSeconds) || pollDelayMs;
+    },
+  });
 
-  const inspectJob = useCallback(async (jobId: string, silent = false) => {
-    if (!silent) setLoadingDetail(true);
-    try {
-      const [detailRes, itemsRes] = await Promise.all([
-        jobsApi.getJobWithETag(jobId),
-        jobsApi.listJobItems(jobId),
-      ]);
-      setSelectedJob(detailRes.data);
-      setSelectedJobEtag(detailRes.etag);
-      setSelectedItems(itemsRes);
-      if (detailRes.retryAfterSeconds) {
-        setPollDelayMs(clampPollMs(detailRes.retryAfterSeconds));
-      }
-    } catch (err) {
-      if (!silent) {
-        throw err;
-      }
-    } finally {
-      if (!silent) setLoadingDetail(false);
-    }
-  }, []);
-
-  const closeDetail = useCallback(() => {
-    setSelectedJob(null);
-    setSelectedJobEtag(null);
-    setSelectedItems([]);
-  }, []);
+  const selectedJob = detailQuery.data?.detail.data ?? null;
+  const selectedJobEtag = detailQuery.data?.detail.etag ?? null;
+  const selectedItems = detailQuery.data?.items ?? [];
 
   const hasActiveJobs =
     jobs.some((j) => !TERMINAL_JOB_STATUSES.has(j.status)) ||
     (selectedJob !== null && !TERMINAL_JOB_STATUSES.has(selectedJob.status));
 
-  useEffect(() => {
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
+  const fetchJobs = useCallback(
+    async (_silent = false) => {
+      await listQuery.refetch();
+    },
+    [listQuery],
+  );
 
-    if (!hasActiveJobs) return;
+  const inspectJob = useCallback(
+    async (jobId: string, _silent = false) => {
+      setInspectedJobId(jobId);
+      await queryClient.fetchQuery({
+        queryKey: documentJobDetailQueryKey(jobId),
+        queryFn: () => fetchJobDetailBundle(jobId),
+      });
+    },
+    [fetchJobDetailBundle, queryClient],
+  );
 
-    pollTimerRef.current = setTimeout(() => {
-      void fetchJobs(true);
-      if (selectedJob && !TERMINAL_JOB_STATUSES.has(selectedJob.status)) {
-        void inspectJob(selectedJob.jobId, true);
-      }
-    }, pollDelayMs);
-
-    return () => {
-      if (pollTimerRef.current) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [hasActiveJobs, pollDelayMs, fetchJobs, inspectJob, selectedJob]);
+  const closeDetail = useCallback(() => {
+    setInspectedJobId(null);
+  }, []);
 
   const loadMore = useCallback(async () => {
-    if (!hasMore || !nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const res = await jobsApi.listJobs({
-        status: statusFilter || undefined,
-        cursor: nextCursor,
-        limit: 20,
-      });
-      setJobs((prev) => [...prev, ...(res.items ?? [])]);
-      setNextCursor(res.nextCursor ?? null);
-      setHasMore(Boolean(res.hasMore));
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [hasMore, nextCursor, loadingMore, statusFilter]);
+    if (!listQuery.hasNextPage || listQuery.isFetchingNextPage) return;
+    await listQuery.fetchNextPage();
+  }, [listQuery]);
+
+  const createMutation = useMutation({
+    mutationFn: ({
+      request,
+      idempotencyKey,
+    }: {
+      request: CreateDocumentJobRequest;
+      idempotencyKey?: string;
+    }) => jobsApi.createJob(request, idempotencyKey),
+    onSuccess: async (res) => {
+      setPollDelayMs(clampPollMs(res.retryAfterSeconds));
+      await queryClient.invalidateQueries({ queryKey: ['document-jobs'] });
+    },
+  });
 
   const createJob = useCallback(
     async (request: CreateDocumentJobRequest, idempotencyKey?: string) => {
-      const res = await jobsApi.createJob(request, idempotencyKey);
-      if (res.retryAfterSeconds) {
-        setPollDelayMs(clampPollMs(res.retryAfterSeconds));
-      } else {
-        setPollDelayMs(DEFAULT_POLL_MS);
-      }
-      await fetchJobs(true);
+      const res = await createMutation.mutateAsync({ request, idempotencyKey });
       return res.data;
     },
-    [fetchJobs],
+    [createMutation],
   );
 
   const cancelJob = useCallback(
@@ -158,17 +164,16 @@ export function useDocumentJobs() {
       try {
         const etag = knownEtag ?? (await jobsApi.getJobWithETag(jobId)).etag;
         const updated = await jobsApi.cancelJob(jobId, etag);
-        setJobs((prev) => prev.map((j) => (j.jobId === jobId ? updated.data : j)));
-        if (selectedJob?.jobId === jobId) {
-          setSelectedJob(updated.data);
-          setSelectedJobEtag(updated.etag);
-        }
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['document-jobs'] }),
+          queryClient.invalidateQueries({ queryKey: documentJobDetailQueryKey(jobId) }),
+        ]);
         return updated.data;
       } finally {
         setMutatingJobId(null);
       }
     },
-    [selectedJob?.jobId],
+    [queryClient],
   );
 
   const retryJob = useCallback(
@@ -178,17 +183,16 @@ export function useDocumentJobs() {
         const etag = knownEtag ?? (await jobsApi.getJobWithETag(jobId)).etag;
         const updated = await jobsApi.retryJob(jobId, etag);
         setPollDelayMs(DEFAULT_POLL_MS);
-        setJobs((prev) => prev.map((j) => (j.jobId === jobId ? updated.data : j)));
-        if (selectedJob?.jobId === jobId) {
-          setSelectedJob(updated.data);
-          setSelectedJobEtag(updated.etag);
-        }
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['document-jobs'] }),
+          queryClient.invalidateQueries({ queryKey: documentJobDetailQueryKey(jobId) }),
+        ]);
         return updated.data;
       } finally {
         setMutatingJobId(null);
       }
     },
-    [selectedJob?.jobId],
+    [queryClient],
   );
 
   const downloadJobResult = useCallback(async (job: DocumentJobResultDto) => {
@@ -205,18 +209,22 @@ export function useDocumentJobs() {
     }
   }, []);
 
+  const error = listQuery.error
+    ? extractErrorMessage(listQuery.error, 'ไม่สามารถโหลดรายการงาน Pipeline C ได้')
+    : null;
+
   return {
     jobs,
     statusFilter,
     setStatusFilter,
-    hasMore,
-    loading,
-    loadingMore,
+    hasMore: Boolean(listQuery.hasNextPage),
+    loading: listQuery.isLoading,
+    loadingMore: listQuery.isFetchingNextPage,
     error,
     selectedJob,
     selectedJobEtag,
     selectedItems,
-    loadingDetail,
+    loadingDetail: detailQuery.isLoading,
     mutatingJobId,
     downloadingJobId,
     hasActiveJobs,
