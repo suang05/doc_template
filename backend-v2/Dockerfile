@@ -1,8 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy build properties and solution file
-COPY Directory.Build.props Directory.Packages.props SmkDocServerV2.slnx ./
+# Copy build properties, analyzer configuration, and solution file
+COPY Directory.Build.props Directory.Packages.props SmkDocServerV2.slnx .editorconfig BannedSymbols.txt ./
 
 # Copy all project definition files for layer caching
 COPY src/SmkDoc.Domain/SmkDoc.Domain.csproj src/SmkDoc.Domain/
@@ -22,7 +22,7 @@ COPY tests/ tests/
 
 # Build and publish Api project
 WORKDIR /src/src/SmkDoc.Api
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish -c Release --no-restore -o /app/publish /p:UseAppHost=false -p:OpenApiGenerateDocuments=false
 
 # Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
@@ -35,10 +35,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 ENV DOTNET_GCHeapHardLimitPercent=0x4B
 EXPOSE 8080
+
+USER app
 
 ENTRYPOINT ["dotnet", "SmkDoc.Api.dll"]

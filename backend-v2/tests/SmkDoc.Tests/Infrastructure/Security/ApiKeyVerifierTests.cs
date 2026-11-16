@@ -131,6 +131,14 @@ public sealed class ApiKeyVerifierTests
     }
 
     [Fact]
+    public void ApiKeyOptions_Defaults_ShouldDisableLegacySha256Keys()
+    {
+        var defaults = new ApiKeyOptions();
+
+        defaults.AllowLegacySha256Keys.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task VerifyAsync_WhenLegacyDisabledAndNonStructuredKeySupplied_ReturnsNullWithoutDbLookup()
     {
         var sut = new ApiKeyVerifier(

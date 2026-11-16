@@ -97,13 +97,13 @@ services:
       - ConnectionStrings__MigratorConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-smkdoc};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-password}
       - ConnectionStrings__Redis=redis:6379,abortConnect=false
       - EncryptionKey=${ENCRYPTION_KEY:-dev-smk-encryption-key-32-bytes!!}
-      - MASTER_API_KEY=${MASTER_API_KEY:-secret-smk-key-2026}
+      - MASTER_API_KEY=${MASTER_API_KEY:-smk_live_DevMaster01_DevMasterSecretToken1234567890}
       - Security__ApiKeyPepper=${API_KEY_PEPPER:-smk-doc-server-dev-api-key-pepper-min-32-chars-2026!}
-      - Security__AllowLegacySha256Keys=${ALLOW_LEGACY_SHA256_KEYS:-true}
+      - Security__AllowLegacySha256Keys=${ALLOW_LEGACY_SHA256_KEYS:-false}
       - Security__WebhookSigningSecret=${WEBHOOK_SIGNING_SECRET:-smk-doc-server-dev-webhook-secret-min-32-chars-2026!}
       - Jwt__Secret=${JWT_SECRET:-dev-smk-jwt-secret-2026-must-be-at-least-32-chars}
-      - Jwt__Issuer=${JWT_ISSUER:-smk-doc-server}
-      - Jwt__Audience=${JWT_AUDIENCE:-smk-portal}
+      - Jwt__Issuer=${JWT_ISSUER:-SmkDoc}
+      - Jwt__Audience=${JWT_AUDIENCE:-SmkDoc.Portal}
       - Admin__Email=${ADMIN_EMAIL:-admin@sammakorn.co.th}
       - Admin__Password=${ADMIN_PASSWORD:-Admin@2026!}
     depends_on:
@@ -143,7 +143,7 @@ services:
       - ConnectionStrings__Redis=redis:6379,abortConnect=false
       - EncryptionKey=${ENCRYPTION_KEY:-dev-smk-encryption-key-32-bytes!!}
       - Security__ApiKeyPepper=${API_KEY_PEPPER:-smk-doc-server-dev-api-key-pepper-min-32-chars-2026!}
-      - Security__AllowLegacySha256Keys=${ALLOW_LEGACY_SHA256_KEYS:-true}
+      - Security__AllowLegacySha256Keys=${ALLOW_LEGACY_SHA256_KEYS:-false}
       - Security__WebhookSigningSecret=${WEBHOOK_SIGNING_SECRET:-smk-doc-server-dev-webhook-secret-min-32-chars-2026!}
     depends_on:
       doc-server-v2:
@@ -187,7 +187,7 @@ services:
     networks:
       - backend-net
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health > /dev/null || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 5

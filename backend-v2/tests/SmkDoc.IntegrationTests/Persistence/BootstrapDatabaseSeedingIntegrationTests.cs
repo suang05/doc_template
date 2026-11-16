@@ -165,6 +165,33 @@ public sealed class BootstrapDatabaseSeedingIntegrationTests(PostgreSqlContainer
         }
     }
 
+    [Fact]
+    public void ValidateMasterApiKeyConfiguration_InProductionWithLegacyKeyAndLegacyDisabled_ThrowsInvalidOperationException()
+    {
+        Dictionary<string, string?> settings = new(StringComparer.Ordinal)
+        {
+            ["Security:ApiKeyPepper"] = TestPepper,
+            ["Security:AllowLegacySha256Keys"] = "false",
+            ["MASTER_API_KEY"] = "secret-smk-key-2026"
+        };
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(settings)
+            .Build();
+
+        ServiceCollection services = new();
+        services.AddSecurityInfrastructure(configuration);
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Action act = () => DatabaseExtensions.ValidateMasterApiKeyConfiguration(
+            provider,
+            configuration,
+            new TestHostEnvironment(Environments.Production));
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("*smk_live_*AllowLegacySha256Keys*");
+    }
+
     [RequiresPostgreSqlFact]
     public async Task InitializeDatabaseAsync_WhenMasterKeyMissing_FailsFastInProduction_AndAutoMintsInDevelopment()
     {

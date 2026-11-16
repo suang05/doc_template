@@ -18,7 +18,7 @@
 - [Frontend Portal Routes](#frontend-portal-routes)
 - [การทดสอบ, Quality Gates และ CI/CD](#การทดสอบ-quality-gates-และ-cicd)
 - [เอกสาร Engineering Specifications](#เอกสาร-engineering-specifications)
-- [สถานะการพัฒนาและข้อจำกัดที่ทราบ (Known Gaps)](#สถานะการพัฒนาและข้อจำกัดที่ทราบ-known-gaps)
+- [หมายเหตุเชิงปฏิบัติการและสถานะความเข้ากันได้ (Operational Notes)](#หมายเหตุเชิงปฏิบัติการและสถานะความเข้ากันได้-operational-notes)
 
 ---
 
@@ -47,14 +47,14 @@
 ```mermaid
 flowchart TB
     PortalUser["Web Operator (Browser)"] --> NextBFF["frontend-v2 (Next.js 15 BFF :3001)\nAuth.js HttpOnly Cookie + /api/proxy/[...path]"]
-    ERP["External ERP / CRM (M2M)"] -->|"X-API-Key + Project-Id"| Gateway
+    ERP["External ERP / CRM (M2M)"] -->|"Authorization: ApiKey + Project-Id"| Gateway
 
     NextBFF -->|"Authorization: Bearer JWT + Project-Id"| Gateway["doc-server-v2 (SmkDoc.Api :8080)\nProjectContextMiddleware -> Rate Limiter -> Controllers -> IUseCase"]
 
-    Gateway -->|"Transactional Writes / RLS (smk_app)"| Postgres[("PostgreSQL 17 (:5433)\nData + RLS + document_jobs + outbox_messages + idempotency_keys")]
+    Gateway -->|"Transactional Writes / RLS (smk_app)"| Postgres[("PostgreSQL 17 (:5433)\nData + RLS + document_jobs + outbox_messages + idempotency_records")]
     Gateway -->|"Rate Limits / Dataset Cache / Invalidation"| Redis[("Redis 7 (:6379)")]
     Gateway -->|"Templates / Fonts / Outputs"| MinIO[("MinIO S3 (:9000 / :9001)")]
-    Gateway -->|"Sync Preview & Render (gotenberg-net internal)"| Gotenberg["Gotenberg 8 (:3000)\nChromium & LibreOffice"]
+    Gateway -->|"Sync Preview & Render (gotenberg-net internal)"| Gotenberg["Gotenberg 8 (:3000)\nChromium (--chromium-disable-javascript=true) & LibreOffice"]
 
     Worker["doc-worker-v2 (SmkDoc.Worker)\nDocumentJobWorker | OutboxRelayWorker\nRetention | LogBatch | IdempotencyCleanup"] -->|"FOR UPDATE SKIP LOCKED"| Postgres
     Worker -->|"Batch Rendering"| Gotenberg
@@ -82,7 +82,7 @@ flowchart TB
 |---|---|---|
 | **Backend API (`SmkDoc.Api`)** | `.NET 10` (`net10.0`), `C# 14` | Clean Architecture, Vertical Slice `IUseCase<,>`, `ValidatingUseCaseDecorator`, `IdempotencyDecorator`, `LoggingUseCaseDecorator`, `ETagResponseFilter`, `Scalar.AspNetCore` `2.17.14` |
 | **Background Worker (`SmkDoc.Worker`)** | `.NET 10` Host (`BackgroundService`) | `DocumentJobWorker`, `OutboxRelayWorker`, `DocumentRetentionWorker`, `GenerationLogBatchWorker`, `IdempotencyCleanupWorker` |
-| **ORM & Database** | PostgreSQL `17-alpine`, EF Core `10.0.4`, Npgsql `10.0.3`, Dapper `2.1.86` | `FORCE ROW LEVEL SECURITY`, 11 EF Core migrations ใน `SmkDoc.Infrastructure/Migrations/` |
+| **ORM & Database** | PostgreSQL `17-alpine`, EF Core `10.0.4`, Npgsql `10.0.3`, Dapper `2.1.86` | `FORCE ROW LEVEL SECURITY`, pure lowercase `snake_case` schema (2 re-baselined EF Core migrations ใน `SmkDoc.Infrastructure/Migrations/`) |
 | **Document Engines & Validation** | `Handlebars.Net` `2.4.3`, `DocumentFormat.OpenXml` `3.2.0`, `ClosedXML` `0.104.2`, `JsonSchema.Net` `7.3.3`, `FluentValidation` `11.11.0`, `Gotenberg 8` | `QRCoder` `1.8.0`, `SkiaSharp` `3.119.1`, `ZXing.Net.Bindings.SkiaSharp` `0.16.22`, `RecyclableMemoryStream` `3.0.1`, `HybridSpoolStream` (`65,536` bytes/chunk) |
 | **Cache, Storage & Security** | `StackExchange.Redis` `2.8.24`, `Minio` `6.0.3`, `BCrypt.Net-Next` `4.2.0`, AES-256-GCM | OpenAPI auto-gen (`Microsoft.AspNetCore.OpenApi` `10.0.12` + `Microsoft.Extensions.ApiDescription.Server` `10.0.12` -> `specs/openapi.json`) |
 | **Frontend Portal (`frontend-v2`)** | Next.js `15.2.0`, React `19.0.0`, TypeScript `5.7.3`, Tailwind CSS `3.4.17` | `@tanstack/react-query` `5.105.0`, `next-auth` `5.0.0-beta.29`, `@monaco-editor/react` `4.7.0`, `@dnd-kit/*`, `zod` `3.24.2`, `lucide-react` `0.475.0`, `openapi-typescript` `7.13.0` |
@@ -98,9 +98,8 @@ smk-doc-server/
 ├── .githooks/                          # Opt-in pre-commit & pre-push git hooks
 ├── .semgrep/smk-rules.yml              # Custom SAST rules สำหรับ C# และ TypeScript/Frontend
 ├── AGENTS.md                           # Master architecture & guardrails guide สำหรับ coding agents
-├── docker-compose.v2.yml               # Production-like stack (db, minio, gotenberg, redis, doc-server-v2, doc-worker-v2, portal-v2)
-├── docker-compose.yml                  # Legacy Compose definition (v1 reference)
-├── package.json                        # Root convenience scripts (v2 + legacy v1 aliases)
+├── docker-compose.v2.yml               # Production-like non-root stack (db, minio, gotenberg, redis, doc-server-v2, doc-worker-v2, portal-v2)
+├── package.json                        # Root monorepo convenience scripts (v2)
 ├── redocly.yaml                        # Redocly OpenAPI lint ruleset
 ├── backend-v2/
 │   ├── SmkDocServerV2.slnx
@@ -110,8 +109,8 @@ smk-doc-server/
 │   ├── src/
 │   │   ├── SmkDoc.Domain/              # Entities, TenantManagement, ValueObjects, Smart Enums, Events, ErrorCodes
 │   │   ├── SmkDoc.Application/         # Modules (6 contexts), UseCase decorators, HybridSpoolStream, Validation
-│   │   ├── SmkDoc.Infrastructure/      # AppDbContext, Migrations (11), RLS Interceptors, Outbox, Engines, Gotenberg, MinIO, Redis
-│   │   ├── SmkDoc.Api/                 # Controllers (29), ProjectContextMiddleware, OpenAPI transformers, Filters, Rate limiting
+│   │   ├── SmkDoc.Infrastructure/      # AppDbContext, Migrations (2 pure snake_case), RLS Interceptors, Outbox, Engines, Gotenberg, MinIO, Redis
+│   │   ├── SmkDoc.Api/                 # Controllers (29), ProjectContextMiddleware, Modular DI Extensions, OpenAPI transformers, Filters, Rate limiting
 │   │   └── SmkDoc.Worker/              # Standalone Worker host สำหรับ BackgroundServices
 │   └── tests/
 │       ├── SmkDoc.Tests/               # Unit tests, NetArchTest policies, OpenAPI contract parity tests
@@ -123,7 +122,8 @@ smk-doc-server/
 │   └── src/
 │       ├── app/
 │       │   ├── (app)/                  # 16 workspace pages (analytics, api-keys, apidocs, audit, datasources, generator, jobs, logs, mapping, projects, settings, studio/[templateId], templates, upload, users, version-history)
-│       │   └── api/                    # Auth.js routes + /api/proxy/[...path] + /api/health
+│       │   ├── api/                    # Auth.js routes + /api/proxy/[...path] + /api/health
+│       │   └── (boundaries)            # App Router loading.tsx, error.tsx, global-error.tsx, not-found.tsx
 │       ├── components/                 # layout/* (AppShell, Topbar, Sidebar, WorkspaceSwitcher, CommandPalette) & ui/*
 │       ├── features/                   # Feature modules (api, components, hooks, schemas, domain)
 │       ├── hooks/                      # Shared hooks (useAutoSelectFirst, useConflictRecovery, useIdempotencyKey)
@@ -134,7 +134,7 @@ smk-doc-server/
 │   ├── 01_clean_arch_patterns/         # Domain, Application, Infrastructure, Api Presentation, Testing archetypes
 │   ├── 02_frontend_patterns/           # App Router & data fetching, UI component conventions
 │   └── 03_specialized_mechanics/       # Tenancy/Security pipeline, Document rendering mechanics, DB & Schema mechanics
-├── tests/                              # E2E sample templates, .http tests และ benchmark reports
+├── tests/                              # E2E sample templates, tests/http/v2-api-smoke.http และ benchmark reports
 └── tools/
     ├── ci/                             # check-specs.ps1, run-ps.mjs
     ├── openapi/                        # check-openapi.ps1 (rebuild + drift + redocly + oasdiff)
@@ -180,14 +180,14 @@ docker compose -f docker-compose.v2.yml -p smk-v2 logs -f doc-server-v2 doc-work
 |---|---|---|
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | ฐานข้อมูลและสิทธิ์ Migrator | `smkdoc` / `postgres` / `password` |
 | `SMK_APP_DB_USER`, `SMK_APP_DB_PASSWORD` | Runtime non-superuser สำหรับบังคับ PostgreSQL RLS | `smk_app` / dev password |
-| `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE` | ลงนามและตรวจสอบ Portal JWT (`>= 32` chars) | dev fallback (>= 32 chars) |
+| `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE` | ลงนามและตรวจสอบ Portal JWT (`>= 32` chars, TTL `<= 15m`) | dev fallback / `SmkDoc` / `SmkDoc.Portal` |
 | `ENCRYPTION_KEY` | กุญแจเข้ารหัส AES-256-GCM สำหรับ DataConnection (`>= 32` bytes) | dev fallback |
-| `API_KEY_PEPPER`, `ALLOW_LEGACY_SHA256_KEYS` | HMAC-SHA256 Pepper ของ API Key และโหมดรองรับ SHA-256 เดิม | dev pepper / `true` |
-| `WEBHOOK_SIGNING_SECRET`, `MASTER_API_KEY` | คีย์ Webhook และ Bootstrap Master Key | dev fallbacks |
+| `API_KEY_PEPPER`, `ALLOW_LEGACY_SHA256_KEYS` | HMAC-SHA256 Pepper ของ API Key และโหมดรองรับ SHA-256 เดิม | dev pepper / `false` |
+| `WEBHOOK_SIGNING_SECRET`, `MASTER_API_KEY` | คีย์ Webhook และ Bootstrap Master Key (`smk_live_{12-char-id}_{secret}`) | dev fallbacks (`smk_live_DevMaster01_...`) |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | บัญชี SuperAdmin เริ่มต้นตอน seed | `admin@sammakorn.co.th` / `Admin@2026!` |
 | `AUTH_SECRET`, `API_INTERNAL_URL`, `NEXT_PUBLIC_API_URL` | ตั้งค่า Auth.js session secret และ URL ฝั่ง BFF/Browser (ดู `frontend-v2/.env.example`) | internal URL `http://doc-server-v2:8080` |
 
-> **คำเตือนสำหรับ Production:** ต้องเปลี่ยน Secrets ทั้งหมด (`JWT_SECRET`, `ENCRYPTION_KEY`, `API_KEY_PEPPER`, `WEBHOOK_SIGNING_SECRET`, `AUTH_SECRET`, `MASTER_API_KEY`, รหัสผ่าน DB/MinIO) และตั้ง `ALLOW_LEGACY_SHA256_KEYS=false` รวมถึง `ASPNETCORE_ENVIRONMENT=Production`
+> **คำเตือนสำหรับ Production:** ต้องเปลี่ยน Secrets ทั้งหมด (`JWT_SECRET`, `ENCRYPTION_KEY`, `API_KEY_PEPPER`, `WEBHOOK_SIGNING_SECRET`, `AUTH_SECRET`, `MASTER_API_KEY` รูปแบบ `smk_live_...`, รหัสผ่าน DB/MinIO) และเปิด `ASPNETCORE_ENVIRONMENT=Production` (ระบบจะ Fail-Fast หากคีย์หลักไม่เป็นรูปแบบ `smk_live_` เมื่อ `ALLOW_LEGACY_SHA256_KEYS=false`)
 
 </details>
 
@@ -222,9 +222,7 @@ npm --prefix frontend-v2 run dev
 |---|---|---|---|
 | **Public / Auth** | `/health`, `/scalar/**`, `/openapi/**`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/schemas/validate` | ไม่ต้องใช้ Token (เฉพาะ Auth endpoints ใช้ `auth-strict` rate limit) | ไม่ผูก Tenant |
 | **Control Plane & Self-Service** | `/api/v1/management/**` (ยกเว้น `/management/settings/fonts` legacy), `/api/v1/portal/projects`, `/api/v1/auth/me` | JWT (`SystemRole: SuperAdmin` สำหรับ `/management/**`; Portal User สำหรับ `/portal/projects` และ `/auth/me`) | Operate ข้าม Tenant ได้ (ZSA exemption เฉพาะ Control Plane) |
-| **Data Plane** | `/api/v1/templates/**`, `/api/v1/documents/**`, `/api/v1/document-jobs/**`, `/api/v1/data-connections/**`, `/api/v1/datasets/**`, `/api/v1/api-keys/**`, `/api/v1/users/**`, `/api/v1/fonts/**`, `/api/v1/logs/**` | **Channel A (M2M):** Header `X-API-Key: smk_live_{keyId}_{secret}`<br>**Channel B (Portal):** `Authorization: Bearer <JWT>` (ผ่าน BFF `/api/proxy/**`) | **Channel B** ต้องส่ง Header `Project-Id: <uuid>` (หากไม่มีคืน `400 PROJECT_CONTEXT_REQUIRED`; `SuperAdmin` ที่ไม่มี membership หรือ `BreakGlassGrant` จะถูกปฏิเสธด้วย `403 CROSS_TENANT_ACCESS_DENIED`)<br>**Channel A** ผูกกับ `ProjectId` ของคีย์ (หากส่ง `Project-Id` ไม่ตรงกับคีย์คืน `400 PROJECT_CONTEXT_MISMATCH`; คีย์ `ReadOnly` ห้ามยิง `POST`/`PUT`/`PATCH`/`DELETE` ยกเว้น `/preview`, `/validate`, `/validate-payload`) |
-
-> **หมายเหตุเรื่อง Spec Roadmap:** เอกสารสถาปัตยกรรมใน [specs/00_architecture_core/03_security_and_performance.md](specs/00_architecture_core/03_security_and_performance.md) และ [specs/03_specialized_mechanics/multi_tenant_security_pipeline.md](specs/03_specialized_mechanics/multi_tenant_security_pipeline.md) กำหนดเป้าหมายให้ M2M ย้ายไปใช้ `Authorization: ApiKey ...` + บังคับส่ง `Project-Id` ทุกคำขอ และย้าย JWT ไปใช้ Asymmetric RS256/ES256 อายุ <= 15 นาที แต่ **โค้ดปัจจุบัน** ยังรับ `X-API-Key` และออก JWT HS256 อายุ 24 ชั่วโมง (ดูหัวข้อ [Known Gaps](#สถานะการพัฒนาและข้อจำกัดที่ทราบ-known-gaps))
+| **Data Plane** | `/api/v1/templates/**`, `/api/v1/documents/**`, `/api/v1/document-jobs/**`, `/api/v1/data-connections/**`, `/api/v1/datasets/**`, `/api/v1/api-keys/**`, `/api/v1/users/**`, `/api/v1/fonts/**`, `/api/v1/logs/**` | **Channel A (M2M):** Header `Authorization: ApiKey smk_live_{keyId}_{secret}`<br>**Channel B (Portal):** `Authorization: Bearer <JWT>` (ผ่าน BFF `/api/proxy/**`) | ทั้ง **Channel A** และ **Channel B** ต้องส่ง Header `Project-Id: <uuid>` (หากไม่มีคืน `400 PROJECT_CONTEXT_REQUIRED`; Non-member / unknown project คืน `404 NOT_FOUND` แบบ anti-enumeration; `SuperAdmin` ที่ไม่มี membership หรือ `BreakGlassGrant` ถูกปฏิเสธด้วย `403 CROSS_TENANT_ACCESS_DENIED`)<br>**Channel A** ผูกกับ `ProjectId` ของคีย์ (หาก `Project-Id` ไม่ตรงกับคีย์คืน `400 PROJECT_CONTEXT_MISMATCH`; คีย์ `ReadOnly` ห้ามยิง `POST`/`PUT`/`PATCH`/`DELETE` ยกเว้น `/preview`, `/validate`, `/validate-payload`) |
 
 ### บทบาทและ Authorization Policies (`AuthorizationPolicies`)
 
@@ -343,10 +341,15 @@ npm run test:arch
 # Backend Integration tests (ต้องมี Docker running สำหรับ Testcontainers)
 dotnet test backend-v2/tests/SmkDoc.IntegrationTests/SmkDoc.IntegrationTests.csproj
 
-# Frontend Quality checks
+# Frontend Quality checks & Production Build
 npm run typecheck:frontend
 npm run lint
 npm run test:frontend
+npm run build:frontend
+npm run codegen:check
+
+# Container Compose validation
+npm run docker:config
 
 # Semgrep (ถ้าติดตั้ง semgrep CLI)
 semgrep scan --config .semgrep/smk-rules.yml --error backend-v2/src frontend-v2/src
@@ -375,12 +378,12 @@ semgrep scan --config .semgrep/smk-rules.yml --error backend-v2/src frontend-v2/
 
 ---
 
-## สถานะการพัฒนาและข้อจำกัดที่ทราบ (Known Gaps)
+## หมายเหตุเชิงปฏิบัติการและสถานะความเข้ากันได้ (Operational Notes)
 
-ส่วนประกอบต่อไปนี้ยังมีระยะห่างระหว่างโค้ดจริงกับเป้าหมายใน `specs/` ที่อยู่ระหว่างแผนปรับจูน (ไม่กระทบการทำงานหลักของแพลตฟอร์ม):
+สถานะสถาปัตยกรรมปัจจุบันได้ผสานข้อกำหนดจาก `specs/` ครบถ้วน โดยมีประเด็นเชิงปฏิบัติการที่ควรทราบดังนี้:
 
-1. **Authentication & Crypto Target vs Current Runtime:** โค้ดยังใช้ `X-API-Key` header, HMAC-SHA256 JWT (`HS256`) อายุ 24 ชั่วโมง และเปิด `ALLOW_LEGACY_SHA256_KEYS=true` ใน Compose dev defaults ขณะที่ `specs/` กำหนดเป้าหมายเป็น `Authorization: ApiKey`, JWT Asymmetric (RS256/ES256 <= 15 นาที), และบังคับ `Project-Id` แม้บนคำขอ M2M
-2. **Synchronous Generation & Presigned URLs:** `POST /api/v1/documents` ในโค้ดปัจจุบันคืน `201 Created` JSON พร้อม URL จาก `GetPresignedUrlAsync` (และ `GenerateDocumentUseCase` ยังใช้ `SpooledRenderOutput` buffer `81,920` bytes) ขณะที่ `06_api_contract_standards.md` กำหนดให้สตรีมไบนารี `200 OK` ผ่าน Gateway ด้วย `HybridSpoolStream` (`65,536` bytes)
-3. **Pagination & Error Semantics:** `DocumentJobsController` ใช้ keyset cursor (`NextCursor`/`HasMore`) บน `DocumentJobListResult` ขณะที่ List endpoints อื่นยังใช้ offset pagination (`PagedApiResponse<T>`) และ `DeprecatedEndpointAttribute` ยังส่ง Header `Deprecation: true` กับ `Sunset: Tue, 30 Jun 2026 23:59:59 GMT`
-4. **Root Legacy Cleanup:** root [`.env.example`](.env.example), [`docker-compose.yml`](docker-compose.yml) และ v1 scripts ใน [`package.json`](package.json) ยังคงหลงเหลือค่าของสถาปัตยกรรม v1 (ควรใช้ `docker-compose.v2.yml` และ `frontend-v2/.env.example` เป็นหลัก)
-5. **Frontend Architecture Alignment:** `frontend-v2` ใช้ Custom Tailwind UI + React state + Zod แทน Radix UI / React Hook Form ตามเอกสาร `specs/02_frontend_patterns/`, ยังมี hooks บางส่วนที่ใช้ `useState`/`useEffect` แทน `@tanstack/react-query`, และยังไม่มี `loading.tsx`/`error.tsx` ระดับ route segment
+1. **Authentication & Key Transition Policy:** ระบบตัดผ่านไปใช้ `Authorization: ApiKey smk_live_...` + `Project-Id` เป็น SSoT เดียว พร้อม Access JWT อายุไม่เกิน 15 นาที (HS256 Single-Service) และปิด `AllowLegacySha256Keys=false` โดยค่าเริ่มต้น (หากจำเป็นต้องรองรับคีย์ SHA-256 เดิมชั่วคราว สามารถตั้ง `Security__AllowLegacySha256Keys=true`)
+2. **Zero-Trust Gateway Streaming:** `POST /api/v1/documents` คืน `201 Created` JSON Metadata พร้อม Gateway URL (`/api/v1/generation-logs/{id}/artifact/file`) และใช้ `HybridSpoolStream` threshold `65,536` bytes โดย `frontend-v2` สตรีมไฟล์ผ่าน `/api/proxy/v1/...` เท่านั้น (ไม่มี MinIO presigned redirect)
+3. **Deprecated Compatibility Endpoints (RFC 8594):** เส้นทาง v1 ที่ติด `[DeprecatedEndpoint]` (เช่น `/api/v1/documents/generate/{slug}`, `/api/v1/documents/jobs/{jobId}`, `/api/v1/management/projects`, `/api/v1/management/settings/fonts`) ยังคงเปิดชั่วคราวพร้อม Header `Deprecation: @1782863999`, `Sunset` (`30 Jun 2026`), และ `Link` (`rel="successor-version"`/`"sunset"`)
+4. **Frontend UI & Data Stack:** `frontend-v2` ใช้ Custom Ice-White Tailwind UI + `@tanstack/react-query` + `zod` + App Router `loading.tsx`/`error.tsx`/`not-found.tsx` boundaries ตามมาตรฐานใน [`specs/02_frontend_patterns/`](specs/02_frontend_patterns/01_app_router_and_data_fetching.md)
+5. **Container Security:** ทั้ง `doc-server-v2`, `doc-worker-v2` (`.NET 10 USER app`) และ `portal-v2` (`node:24-alpine USER nextjs`) รันแบบ non-root container บน Compose v2 (`docker-compose.v2.yml`) และทดสอบ HTTP smoke scenarios ได้ผ่าน [`tests/http/v2-api-smoke.http`](tests/http/v2-api-smoke.http)

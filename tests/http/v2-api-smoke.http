@@ -1,0 +1,91 @@
+# SMK Document Server v2 — REST & M2M Smoke Scenarios
+# Use with VS Code REST Client or JetBrains HTTP Client against docker-compose.v2.yml (:8080)
+
+@baseUrl = http://localhost:8080
+@apiKey = smk_live_DevMaster01_DevMasterSecretToken1234567890
+@projectId = 00000000-0000-0000-0000-000000000000
+@bearerToken = replace-with-jwt-from-login
+@ifMatch = "v1"
+
+### 1. Health & Service Info (Public)
+GET {{baseUrl}}/health
+
+###
+GET {{baseUrl}}/
+
+### 2. Portal Login (Obtain JWT Bearer & Discover Project-Id)
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@sammakorn.co.th",
+  "password": "Admin@2026!"
+}
+
+### 3. List Accessible Workspaces (Self-Service JWT)
+GET {{baseUrl}}/api/v1/portal/projects?limit=20&includeTotal=true
+Authorization: Bearer {{bearerToken}}
+
+### 4. M2M Data Connections (Authorization: ApiKey + Project-Id)
+GET {{baseUrl}}/api/v1/data-connections?limit=20&includeTotal=false
+Authorization: ApiKey {{apiKey}}
+Project-Id: {{projectId}}
+
+### 5. List Templates (Offset Pagination + limit)
+GET {{baseUrl}}/api/v1/templates?limit=20&includeTotal=true
+Authorization: ApiKey {{apiKey}}
+Project-Id: {{projectId}}
+
+### 6. Pipeline A — Synchronous Document Generation (201 JSON Metadata + Gateway Stream URL)
+POST {{baseUrl}}/api/v1/documents
+Authorization: ApiKey {{apiKey}}
+Project-Id: {{projectId}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "slug": "invoice-sample",
+  "outputFormat": "pdf",
+  "callerApp": "smoke-test",
+  "payload": {
+    "contractNo": "SMK-2026-001",
+    "amount": 2500000
+  }
+}
+
+### 7. Stream Generated Artifact via Zero-Trust Gateway (Log ID from data.url)
+@generationId = 00000000-0000-0000-0000-000000000000
+GET {{baseUrl}}/api/v1/generation-logs/{{generationId}}/artifact/file
+Authorization: ApiKey {{apiKey}}
+Project-Id: {{projectId}}
+
+### 8. Pipeline C — Create Async Batch Job (202 Accepted + Location + Retry-After)
+POST {{baseUrl}}/api/v1/document-jobs
+Authorization: ApiKey {{apiKey}}
+Project-Id: {{projectId}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "callerApp": "smoke-test",
+  "items": [
+    {
+      "templateSlug": "invoice-sample",
+      "outputFormat": "pdf",
+      "documentRef": "INV-001",
+      "payload": { "contractNo": "SMK-2026-001" }
+    }
+  ]
+}
+
+### 9. List Document Jobs (Cursor Pagination + PagedApiResponse Envelope)
+GET {{baseUrl}}/api/v1/document-jobs?limit=20
+Authorization: ApiKey {{apiKey}}
+Project-Id: {{projectId}}
+
+### 10. Cancel Document Job with Optimistic Concurrency (If-Match)
+@jobId = 00000000-0000-0000-0000-000000000000
+POST {{baseUrl}}/api/v1/document-jobs/{{jobId}}:cancel
+Authorization: ApiKey {{apiKey}}
+Project-Id: {{projectId}}
+If-Match: {{ifMatch}}

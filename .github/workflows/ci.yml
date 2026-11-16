@@ -39,7 +39,7 @@ jobs:
       - name: Verify full-solution C# formatting, style & analyzers (.editorconfig)
         run: dotnet format backend-v2/SmkDocServerV2.slnx --verify-no-changes --no-restore
       - name: Build solution with Roslyn, BannedApi, VSTHRD & Sonar analyzers
-        run: dotnet build backend-v2/SmkDocServerV2.slnx -c Release --no-restore -p:GenerateOpenApiDocuments=false
+        run: dotnet build backend-v2/SmkDocServerV2.slnx -c Release --no-restore -p:OpenApiGenerateDocuments=false
       - name: Run unit, NetArchTest & OpenAPI parity tests
         run: dotnet test backend-v2/tests/SmkDoc.Tests/SmkDoc.Tests.csproj -c Release --no-build --verbosity normal
       - name: Audit NuGet packages for known vulnerabilities
@@ -99,6 +99,13 @@ jobs:
         run: npm --prefix frontend-v2 run lint -- --max-warnings=0
       - name: Run Vitest unit suite
         run: npm --prefix frontend-v2 test
+      - name: Build Next.js production bundle
+        env:
+          AUTH_SECRET: ci-build-placeholder-secret-32-chars!!
+          NEXT_PUBLIC_API_URL: http://localhost:8080
+        run: npm --prefix frontend-v2 run build
+      - name: Validate Docker Compose v2 topology
+        run: docker compose -f docker-compose.v2.yml config -q
 
   semgrep-sast:
     name: Semgrep Custom Security & Anti-Pattern SAST

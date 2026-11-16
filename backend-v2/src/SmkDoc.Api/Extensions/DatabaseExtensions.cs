@@ -52,6 +52,8 @@ public static partial class DatabaseExtensions
         IHostEnvironment environment,
         ILogger logger)
     {
+        ValidateMasterApiKeyConfiguration(rootServices, configuration, environment);
+
         string? migratorConnectionString = configuration.GetConnectionString("MigratorConnection");
         string? defaultConnectionString = configuration.GetConnectionString("DefaultConnection")
             ?? configuration["DATABASE_URL"];
@@ -360,6 +362,40 @@ public static partial class DatabaseExtensions
         }
     }
 
+    internal static void ValidateMasterApiKeyConfiguration(
+        IServiceProvider rootServices,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        string? masterApiKey = configuration["MASTER_API_KEY"] ?? configuration["Security:ApiKey"];
+        if (string.IsNullOrWhiteSpace(masterApiKey))
+        {
+            if (environment.IsProduction())
+            {
+                throw new InvalidOperationException(
+                    "CRITICAL SECURITY ERROR: MASTER_API_KEY or Security:ApiKey must be set in Production.");
+            }
+
+            return;
+        }
+
+        bool allowLegacySha256Keys = configuration.GetValue<bool>("Security:AllowLegacySha256Keys");
+        if (allowLegacySha256Keys)
+        {
+            return;
+        }
+
+        using var scope = rootServices.CreateScope();
+        var credentialGenerator = scope.ServiceProvider.GetService<IApiKeyCredentialGenerator>();
+        if (credentialGenerator is not null &&
+            !credentialGenerator.TryParseAndHashStructuredKey(masterApiKey.Trim(), out _) &&
+            environment.IsProduction())
+        {
+            throw new InvalidOperationException(
+                "CRITICAL SECURITY ERROR: MASTER_API_KEY must use structured format 'smk_live_{12-char-id}_{secret}' when Security:AllowLegacySha256Keys is disabled.");
+        }
+    }
+
     private static async Task EnsureMasterApiKeyAsync(
         IApiKeyRepository apiKeyRepo,
         IApiKeyCredentialGenerator? credentialGenerator,
@@ -390,6 +426,21 @@ public static partial class DatabaseExtensions
             parsedCredential is not null)
         {
             await EnsureStructuredMasterApiKeyAsync(apiKeyRepo, uow, projectId, parsedCredential, now, logger);
+            return;
+        }
+
+        bool allowLegacySha256Keys = configuration.GetValue<bool>("Security:AllowLegacySha256Keys");
+        if (!allowLegacySha256Keys)
+        {
+            if (environment.IsProduction())
+            {
+                throw new InvalidOperationException(
+                    "CRITICAL SECURITY ERROR: MASTER_API_KEY must use structured format 'smk_live_{12-char-id}_{secret}' when Security:AllowLegacySha256Keys is disabled.");
+            }
+
+            LogIgnoredLegacyMasterApiKeyInDev(logger);
+            await EnsureDevEphemeralMasterApiKeyAsync(
+                apiKeyRepo, credentialGenerator, uow, projectId, now, logger);
             return;
         }
 
@@ -583,6 +634,11 @@ public static partial class DatabaseExtensions
         Level = LogLevel.Information,
         Message = "Seeded default Master API key.")]
     private static partial void LogSeededMasterApiKey(ILogger logger);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Ignoring non-structured MASTER_API_KEY in non-Production because Security:AllowLegacySha256Keys is false; provisioning structured development key instead.")]
+    private static partial void LogIgnoredLegacyMasterApiKeyInDev(ILogger logger);
 
     [LoggerMessage(
         Level = LogLevel.Information,

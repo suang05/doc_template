@@ -8,6 +8,6 @@ public sealed class ApiKeyOptions
     public const string SectionName = "Security";
 
     public string ApiKeyPepper { get; set; } = string.Empty;
-    public bool AllowLegacySha256Keys { get; set; } = true;
+    public bool AllowLegacySha256Keys { get; set; }
     public string WebhookSigningSecret { get; set; } = string.Empty;
 }
