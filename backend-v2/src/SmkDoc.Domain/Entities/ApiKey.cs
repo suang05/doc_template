@@ -28,8 +28,16 @@ public sealed class ApiKey : AggregateRoot<ApiKeyId>, IMustHaveProject
     public ReadOnlyMemory<byte>? SecretHash { get; private set; }
     public bool HasSecretHash => SecretHash is { Length: 32 };
     public Sha256Hash? KeyHash { get; private set; }
+    private ExpirationPolicy? _expiration = ExpirationPolicy.Never;
+
     public ApiKeyScope Scope { get; private set; } = ApiKeyScope.ReadWrite;
-    public ExpirationPolicy Expiration { get; private set; } = ExpirationPolicy.Never;
+
+    public ExpirationPolicy Expiration
+    {
+        get => _expiration ?? ExpirationPolicy.Never;
+        private set => _expiration = value ?? ExpirationPolicy.Never;
+    }
+
     public bool IsActive { get; private set; }
     public DateTimeOffset? LastUsedAt { get; private set; }
 
@@ -41,7 +49,7 @@ public sealed class ApiKey : AggregateRoot<ApiKeyId>, IMustHaveProject
     /// <summary>
     /// Read-only projection of Expiration.ExpiresAt for consumer convenience.
     /// </summary>
-    public DateTimeOffset? ExpiresAt => Expiration?.ExpiresAt;
+    public DateTimeOffset? ExpiresAt => Expiration.ExpiresAt;
 
     public bool IsRevoked => !IsActive;
 

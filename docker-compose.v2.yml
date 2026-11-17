@@ -49,7 +49,9 @@ services:
       - "gotenberg"
       - "--api-port=3000"
       - "--chromium-disable-javascript=true"
-      - "--chromium-deny-list=^file:///.*"
+      - "--chromium-deny-list=^file:(?!///tmp/).*"
+      - "--chromium-deny-private-ips=true"
+      - "--libreoffice-deny-private-ips=true"
     networks:
       - gotenberg-net
     healthcheck:

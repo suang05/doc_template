@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -7,7 +8,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using SmkDoc.Api.Extensions;
+using SmkDoc.Domain.Entities;
+using SmkDoc.Domain.ValueObjects;
+using SmkDoc.Domain.ValueObjects.Ids;
 using SmkDoc.Infrastructure.Extensions;
+using SmkDoc.Infrastructure.Persistence;
 using SmkDoc.IntegrationTests.Fixtures;
 
 namespace SmkDoc.IntegrationTests.Persistence;
@@ -157,6 +162,26 @@ public sealed class BootstrapDatabaseSeedingIntegrationTests(PostgreSqlContainer
             verified!.KeyId.Value.Should().Be(apiKeyId);
             verified.ProjectId.Value.Should().Be(projectId);
             verified.IsLegacySha256.Should().BeFalse();
+
+            // Verify EF Core materializes non-expiring API keys (expires_at IS NULL) without NullReferenceException
+            await using (AsyncServiceScope verifyScope = services.CreateAsyncScope())
+            {
+                ICurrentProjectContextSetter setter =
+                    verifyScope.ServiceProvider.GetRequiredService<ICurrentProjectContextSetter>();
+                setter.SetProject(new ProjectId(projectId), "bootstrap-verify");
+
+                AppDbContext verifyDb =
+                    verifyScope.ServiceProvider.GetRequiredService<AppDbContext>();
+                DateTimeOffset now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+                List<ApiKey> materializedKeys = await verifyDb.ApiKeys
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                materializedKeys.Should().ContainSingle();
+                materializedKeys[0].Expiration.Should().Be(ExpirationPolicy.Never);
+                materializedKeys[0].IsExpiredAt(now).Should().BeFalse();
+                materializedKeys[0].IsUsableAt(now).Should().BeTrue();
+            }
         }
         finally
         {
